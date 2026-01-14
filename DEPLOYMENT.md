@@ -30,8 +30,8 @@ FRONTEND_URL=https://insta.imsocialclub.com
 JWT_SECRET=your-strong-random-secret-key-here
 
 # Google OAuth
-GOOGLE_OAUTH_CLIENT_ID=378278205772-t4icp3d1tlqc1mthf0vgr75dseeamgcq.apps.googleusercontent.com
-GOOGLE_OAUTH_CLIENT_SECRET=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
+GOOGLE_OAUTH_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
 
 # Server Configuration
 PORT=3000
