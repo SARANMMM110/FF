@@ -3,21 +3,16 @@ import { getCookie, setCookie } from "hono/cookie";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import {
-  exchangeCodeForSessionToken,
-  getOAuthRedirectUrl,
-  authMiddleware,
-  deleteSession,
-  MOCHA_SESSION_TOKEN_COOKIE_NAME,
-} from "@getmocha/users-service/backend";
+import { createLocalAuthMiddleware, generateSessionToken, getCurrentUserFromToken, SESSION_TOKEN_COOKIE_NAME } from "../server/auth/localAuth";
+import { getGoogleOAuthRedirectUrl, exchangeGoogleCodeForTokens, getGoogleUserInfo } from "../server/auth/googleOAuth";
 import { processRecurringTasks, calculateNextOccurrence } from "./recurring-tasks";
 import { syncTask as syncTaskToNotion } from "./lib/integrations/notion";
 
 interface Env {
   DB: D1Database;
   R2_BUCKET: R2Bucket;
-  MOCHA_USERS_SERVICE_API_URL: string;
-  MOCHA_USERS_SERVICE_API_KEY: string;
+  FRONTEND_URL?: string;
+  JWT_SECRET?: string;
   SYSTEME_IO_API_KEY?: string;
   AWEBER_CLIENT_ID?: string;
   AWEBER_CLIENT_SECRET?: string;
@@ -29,7 +24,44 @@ interface Env {
   NOTION_INTEGRATION_SECRET?: string;
 }
 
+// Create local auth middleware
+const authMiddleware = createLocalAuthMiddleware();
+
 const app = new Hono<{ Bindings: Env }>();
+
+// CORS middleware
+app.use('*', async (c, next) => {
+  const origin = c.req.header('Origin');
+  
+  // In development, allow requests from localhost:5173 or any origin
+  // In production, only allow from configured FRONTEND_URL
+  if (process.env.NODE_ENV !== 'production') {
+    // Development: allow localhost:5173 or any origin
+    if (origin) {
+      c.header('Access-Control-Allow-Origin', origin);
+    } else {
+      c.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+    }
+  } else {
+    // Production: only allow configured frontend URL
+    const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
+    if (origin === frontendUrl) {
+      c.header('Access-Control-Allow-Origin', origin);
+    }
+  }
+
+  c.header('Access-Control-Allow-Credentials', 'true');
+  c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  c.header('Access-Control-Max-Age', '86400');
+
+  // Handle preflight requests
+  if (c.req.method === 'OPTIONS') {
+    return c.text('', 204);
+  }
+
+  await next();
+});
 
 // Profile endpoints
 // Get user profile
@@ -320,21 +352,37 @@ const adminMiddleware = async (c: any, next: any) => {
 
 // Auth endpoints
 app.get("/api/oauth/google/redirect_url", async (c) => {
-  const plan = c.req.query("plan"); // Check for special plan parameter
-  
-  let redirectUrl = await getOAuthRedirectUrl("google", {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
-
-  // Add plan parameter to redirect URL if present
-  if (plan && ["pro", "enterprise"].includes(plan)) {
-    const url = new URL(redirectUrl);
-    url.searchParams.set("state", plan); // Use state parameter to pass plan through OAuth flow
-    redirectUrl = url.toString();
+  // Check if Google OAuth is configured
+  if (!c.env.GOOGLE_CALENDAR_CLIENT_ID) {
+    return c.json({
+      error: "Google OAuth not configured",
+      message: "GOOGLE_OAUTH_CLIENT_ID or GOOGLE_CALENDAR_CLIENT_ID must be set in environment variables"
+    }, 500);
   }
 
-  return c.json({ redirectUrl }, 200);
+  const plan = c.req.query("plan"); // Check for special plan parameter
+  
+  try {
+    // Construct the redirect URI - this is where Google will send the user after authentication
+    // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
+  const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
+  const redirectUri = `${frontendUrl}/auth/callback`;
+    
+    // Generate the Google OAuth URL
+    let redirectUrl = getGoogleOAuthRedirectUrl(
+      c.env.GOOGLE_CALENDAR_CLIENT_ID,
+      redirectUri,
+      plan || undefined // Pass plan as state parameter if present
+    );
+
+    return c.json({ redirectUrl });
+  } catch (error: any) {
+    console.error("Error getting OAuth redirect URL:", error);
+    return c.json({
+      error: "Failed to get OAuth redirect URL",
+      message: error.message || "Failed to generate OAuth URL"
+    }, 500);
+  }
 });
 
 app.post("/api/sessions", async (c) => {
@@ -410,39 +458,112 @@ app.post("/api/sessions", async (c) => {
     has_registration_code: !!body.registration_code 
   }));
 
-  const sessionToken = await exchangeCodeForSessionToken(body.code, {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
+  // Exchange Google OAuth code for tokens
+  if (!c.env.GOOGLE_CALENDAR_CLIENT_ID || !c.env.GOOGLE_CALENDAR_CLIENT_SECRET) {
+    console.error("❌ [OAuth] Google OAuth credentials not configured");
+    return c.json({ error: "Google OAuth not configured" }, 500);
+  }
 
-  setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, sessionToken, {
+  // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
+  // IMPORTANT: This must match EXACTLY what was used in /api/oauth/google/redirect_url
+  const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
+  const redirectUri = `${frontendUrl}/auth/callback`;
+  
+  console.log("🔐 [OAuth] Exchanging code for tokens:", {
+    hasCode: !!body.code,
+    redirectUri,
+    clientId: c.env.GOOGLE_CALENDAR_CLIENT_ID?.substring(0, 20) + '...'
+  });
+  
+  let googleUserInfo: any;
+  try {
+    const tokens = await exchangeGoogleCodeForTokens(
+      body.code,
+      c.env.GOOGLE_CALENDAR_CLIENT_ID,
+      c.env.GOOGLE_CALENDAR_CLIENT_SECRET,
+      redirectUri
+    );
+
+    console.log("✅ [OAuth] Successfully exchanged code for tokens");
+    
+    // Get user info from Google
+    googleUserInfo = await getGoogleUserInfo(tokens.access_token);
+    console.log("✅ [OAuth] Successfully retrieved user info:", googleUserInfo.email);
+  } catch (error: any) {
+    console.error("❌ [OAuth] Error exchanging OAuth code:", error);
+    console.error("❌ [OAuth] Error details:", {
+      message: error.message,
+      redirectUri,
+      frontendUrl: c.env.FRONTEND_URL
+    });
+    return c.json({ 
+      error: "Failed to authenticate with Google", 
+      message: error.message,
+      details: "Check backend console for more details"
+    }, 500);
+  }
+
+  // Create or get user from database
+  const userId = `google_${googleUserInfo.id}`;
+  const user = {
+    id: userId,
+    email: googleUserInfo.email,
+    name: googleUserInfo.name,
+    google_user_data: {
+      sub: googleUserInfo.id,
+      name: googleUserInfo.name,
+      email: googleUserInfo.email,
+      picture: googleUserInfo.picture,
+    },
+  };
+
+  // Generate session token
+  const sessionToken = generateSessionToken(userId);
+
+  // Cookie settings - use secure only in production
+  const isProduction = process.env.NODE_ENV === 'production';
+  setCookie(c, SESSION_TOKEN_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: true,
+    sameSite: isProduction ? "none" : "lax", // Use 'lax' for local development
+    secure: isProduction, // Only use secure cookies in production (HTTPS)
     maxAge: 60 * 24 * 60 * 60, // 60 days
   });
 
-  // Get user info to check if this is a new registration
-  const { getCurrentUser } = await import("@getmocha/users-service/backend");
-  const user = await getCurrentUser(sessionToken, {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
-
   if (user) {
-    // Check if this user exists in our database
-    const { results: userCheck } = await c.env.DB.prepare(
-      "SELECT user_id FROM users WHERE user_id = ? LIMIT 1"
-    ).bind(user.id).all();
+    let userCheck: any[] = [];
+    let settingsCheck: any[] = [];
+    
+    try {
+      // Check if this user exists in our database
+      const userResult = await c.env.DB.prepare(
+        "SELECT user_id FROM users WHERE user_id = ? LIMIT 1"
+      ).bind(user.id).all();
+      userCheck = userResult.results || [];
 
-    const { results: settingsCheck } = await c.env.DB.prepare(
-      "SELECT user_id FROM user_settings WHERE user_id = ? LIMIT 1"
-    ).bind(user.id).all();
+      const settingsResult = await c.env.DB.prepare(
+        "SELECT user_id FROM user_settings WHERE user_id = ? LIMIT 1"
+      ).bind(user.id).all();
+      settingsCheck = settingsResult.results || [];
+    } catch (dbError: any) {
+      console.error("❌ [Database] Error checking user:", dbError);
+      return c.json({ 
+        error: "Database error", 
+        message: dbError.message || "Failed to check user in database",
+        details: "Make sure database tables exist. Run migrations if needed."
+      }, 500);
+    }
 
-    const { results: signupCheck } = await c.env.DB.prepare(
-      "SELECT email FROM email_signups WHERE email = ? LIMIT 1"
-    ).bind(user.email).all();
+    let signupCheck: any[] = [];
+    try {
+      const signupResult = await c.env.DB.prepare(
+        "SELECT email FROM email_signups WHERE email = ? LIMIT 1"
+      ).bind(user.email).all();
+      signupCheck = signupResult.results || [];
+    } catch (dbError: any) {
+      console.error("❌ [Database] Error checking email signups:", dbError);
+      // Continue - this is not critical
+    }
 
     const isNewUser = userCheck.length === 0;
     const notInWaitlist = signupCheck.length === 0;
@@ -462,18 +583,27 @@ app.post("/api/sessions", async (c) => {
       
       console.log(`💾 [Database] Creating NEW user with plan: ${subscriptionPlan.toUpperCase()}`);
       
-      await c.env.DB.prepare(
-        `INSERT INTO users (user_id, email, name, google_user_id, profile_picture_url, signup_source, subscription_plan, last_login_at)
-         VALUES (?, ?, ?, ?, ?, 'google-oauth', ?, ?)`
-      ).bind(
-        user.id,
-        user.email,
-        user.google_user_data?.name || null,
-        user.google_user_data?.sub || null,
-        user.google_user_data?.picture || null,
-        subscriptionPlan,
-        new Date().toISOString()
-      ).run();
+      try {
+        await c.env.DB.prepare(
+          `INSERT INTO users (user_id, email, name, google_user_id, profile_picture_url, signup_source, subscription_plan, last_login_at)
+           VALUES (?, ?, ?, ?, ?, 'google-oauth', ?, ?)`
+        ).bind(
+          user.id,
+          user.email,
+          user.google_user_data?.name || null,
+          user.google_user_data?.sub || null,
+          user.google_user_data?.picture || null,
+          subscriptionPlan,
+          new Date().toISOString()
+        ).run();
+      } catch (dbError: any) {
+        console.error("❌ [Database] Error creating user:", dbError);
+        return c.json({ 
+          error: "Database error", 
+          message: dbError.message || "Failed to create user in database",
+          details: "Make sure database tables exist. Run 'npm run migrate' to create tables."
+        }, 500);
+      }
       
       console.log(`✅ [Database] Successfully created user record for: ${user.id} with plan: ${subscriptionPlan.toUpperCase()}`);
       
@@ -628,20 +758,13 @@ app.get("/api/users/me", authMiddleware, async (c) => {
 });
 
 app.get("/api/logout", async (c) => {
-  const sessionToken = getCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME);
-
-  if (typeof sessionToken === "string") {
-    await deleteSession(sessionToken, {
-      apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-      apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-    });
-  }
-
-  setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, "", {
+  // Simply clear the session cookie - no need to call external service
+  const isProduction = process.env.NODE_ENV === 'production';
+  setCookie(c, SESSION_TOKEN_COOKIE_NAME, "", {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: true,
+    sameSite: isProduction ? "none" : "lax",
+    secure: isProduction,
     maxAge: 0,
   });
 
@@ -2894,17 +3017,13 @@ app.get("/api/calendar/callback", async (c) => {
     c.executionCtx.waitUntil(
       (async () => {
         try {
-          const sessionToken = getCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME);
+          const sessionToken = getCookie(c, SESSION_TOKEN_COOKIE_NAME);
           if (!sessionToken) {
             console.error("❌ [Calendar Callback] No session token");
             return;
           }
           
-          const { getCurrentUser } = await import("@getmocha/users-service/backend");
-          const user = await getCurrentUser(sessionToken, {
-            apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-            apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-          });
+          const user = await getCurrentUserFromToken(sessionToken, c.env.DB);
           
           if (!user) {
             console.error("❌ [Calendar Callback] No user found");

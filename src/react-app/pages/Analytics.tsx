@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/contexts/AuthContext";
 import { useNavigate } from "react-router";
 import Layout from "@/react-app/components/Layout";
 import TimeTrackingComparison from "@/react-app/components/TimeTrackingComparison";
@@ -76,7 +76,7 @@ export default function Analytics() {
 
   useEffect(() => {
     if (!isPending && !user) {
-      navigate("/login");
+      navigate("/auth/login");
     }
   }, [user, isPending, navigate]);
 
@@ -191,7 +191,7 @@ export default function Analytics() {
               Unlock insights into your productivity journey
             </p>
             <button 
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/auth/login")}
               className="group px-8 py-4 bg-gradient-to-r from-[#E50914] to-[#FFD400] rounded-2xl font-bold text-lg text-black hover:shadow-2xl transition-all duration-300 hover:scale-105"
             >
               <span className="flex items-center gap-3">

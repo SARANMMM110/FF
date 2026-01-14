@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router";
 import { 
   Play, TrendingUp, Target, Zap, Timer, CheckCircle2, BarChart3, Calendar, 
@@ -49,12 +49,19 @@ export default function Home() {
       const registrationCode = searchParams.get('code');
       
       // Construct API URL with plan parameter if present
-      let apiUrl = "/api/oauth/google/redirect_url";
+      let endpoint = "api/oauth/google/redirect_url";
       if (specialPlan && ["pro", "enterprise"].includes(specialPlan)) {
-        apiUrl += `?plan=${specialPlan}`;
+        endpoint += `?plan=${specialPlan}`;
       }
       
-      const response = await fetch(apiUrl);
+      const { apiFetch } = await import('@/react-app/utils/api');
+      const response = await apiFetch(endpoint);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to get OAuth URL');
+      }
+      
       const data = await response.json();
       
       // Store registration code in sessionStorage to pass through OAuth flow
@@ -65,6 +72,7 @@ export default function Home() {
       window.location.href = data.redirectUrl;
     } catch (error) {
       console.error("Failed to initiate Google sign-in:", error);
+      alert("Failed to start sign-in. Please make sure the backend server is running on port 3000.");
     }
   };
 

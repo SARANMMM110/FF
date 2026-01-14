@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/contexts/AuthContext";
 import { useNavigate, useSearchParams, useLocation } from "react-router";
 import { useSettings } from "@/react-app/hooks/useSettings";
 import { useTasks } from "@/react-app/hooks/useTasks";

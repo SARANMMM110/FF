@@ -45,6 +45,8 @@ export default function App() {
       <Route path="/admin/registration-codes" element={<AdminRegistrationCodesPage />} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+      {/* Catch-all route for undefined paths */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

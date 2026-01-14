@@ -1,7 +1,15 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { authMiddleware } from "@getmocha/users-service/backend";
+import { createLocalAuthMiddleware } from "../server/auth/localAuth";
+import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
+
+interface Env {
+  DB: D1Database;
+  R2_BUCKET: R2Bucket;
+}
+
+const authMiddleware = createLocalAuthMiddleware();
 
 const app = new Hono<{ Bindings: Env }>();
 

@@ -118,7 +118,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
   // Task commands
   const taskCommands: Command[] = tasks
-    .filter((task) => !task.is_completed)
+    .filter((task) => !task.is_completed && task.id != null)
     .slice(0, 5) // Limit to 5 tasks
     .map((task) => ({
       id: `task-${task.id}`,
@@ -126,7 +126,11 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       description: task.project ? `Project: ${task.project}` : undefined,
       icon: <Play className="w-4 h-4" />,
       action: () => {
-        navigate(`/focus-mode?taskId=${task.id}`);
+        if (task.id != null) {
+          navigate(`/focus-mode?taskId=${task.id}`);
+        } else {
+          navigate("/focus-mode");
+        }
         onClose();
       },
       group: "Tasks",

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/contexts/AuthContext";
 import { useNavigate } from "react-router";
 import { useProfileContext } from "@/react-app/contexts/ProfileContext";
 import Layout from "@/react-app/components/Layout";

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/contexts/AuthContext";
 import { useNavigate } from "react-router";
 import Layout from "@/react-app/components/Layout";
 import { useSubscription } from "@/react-app/hooks/useSubscription";
@@ -33,7 +33,7 @@ export default function Goals() {
 
   useEffect(() => {
     if (!isPending && !user) {
-      navigate("/login");
+      navigate("/auth/login");
     }
   }, [user, isPending, navigate]);
 

@@ -1,4 +1,4 @@
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/contexts/AuthContext";
 import { useNavigate } from "react-router";
 import { useTheme } from "@/react-app/contexts/ThemeContext";
 import { useProfileContext } from "@/react-app/contexts/ProfileContext";

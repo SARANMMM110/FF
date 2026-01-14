@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router";
 import { Loader2 } from "lucide-react";
 
@@ -25,9 +25,9 @@ export default function AuthCallback() {
         
         if (code) {
           // Create session with state parameter and registration code
-          const response = await fetch("/api/sessions", {
+          const { apiFetch } = await import('@/react-app/utils/api');
+          const response = await apiFetch('api/sessions', {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
               code,
               state: state || undefined,
@@ -39,11 +39,20 @@ export default function AuthCallback() {
             // Force a page reload to refresh auth state
             window.location.href = "/dashboard";
           } else {
-            throw new Error("Session creation failed");
+            // Get error details from response
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error("Session creation failed:", errorData);
+            throw new Error(errorData.message || errorData.error || "Session creation failed");
           }
         } else {
-          await exchangeCodeForSessionToken();
-          navigate("/dashboard");
+          // No code in URL, check if we have one from query params
+          const urlCode = searchParams.get('code');
+          if (urlCode) {
+            await exchangeCodeForSessionToken(urlCode);
+            navigate("/dashboard");
+          } else {
+            throw new Error("No authorization code found");
+          }
         }
       } catch (error) {
         console.error("Auth error:", error);
