@@ -73,6 +73,69 @@ app.use('*', async (c, next) => {
   await next();
 });
 
+// Root route
+app.get("/", (c) => {
+  return c.json({
+    name: "FocusFlow API",
+    version: "1.0.0",
+    status: "running",
+    endpoints: {
+      health: "/api/health",
+      auth: "/api/oauth/google/redirect_url",
+      profile: "/api/profile",
+      users: "/api/users/me",
+    },
+  });
+});
+
+// Health check endpoint
+app.get("/api/health", async (c) => {
+  try {
+    // Test database connection
+    await c.env.DB.prepare("SELECT 1").all();
+    return c.json({
+      status: "healthy",
+      database: "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    return c.json(
+      {
+        status: "unhealthy",
+        database: "disconnected",
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      },
+      503
+    );
+  }
+});
+
+// API info endpoint
+app.get("/api", (c) => {
+  return c.json({
+    name: "FocusFlow API",
+    version: "1.0.0",
+    basePath: "/api",
+    endpoints: {
+      health: "GET /api/health",
+      auth: {
+        googleRedirect: "GET /api/oauth/google/redirect_url",
+        session: "POST /api/sessions",
+        logout: "GET /api/logout",
+      },
+      profile: {
+        get: "GET /api/profile",
+        update: "PATCH /api/profile",
+        photo: "POST /api/profile/photo",
+      },
+      users: {
+        me: "GET /api/users/me",
+      },
+    },
+  });
+});
+
 // Profile endpoints
 // Get user profile
 app.get("/api/profile", authMiddleware, async (c) => {
