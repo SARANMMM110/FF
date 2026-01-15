@@ -24,7 +24,20 @@ export class PostgresD1Database implements D1Database {
     return new PostgresD1PreparedStatement(this.pool, query);
   }
 
-  async exec(query: string): Promise<D1Result> {
+  withSession(constraintOrBookmark?: string): D1DatabaseSession {
+    // Not implemented for PostgreSQL - return a minimal session
+    return {
+      ...this,
+      getBookmark: () => '',
+    } as D1DatabaseSession;
+  }
+
+  dump(): Promise<ArrayBuffer> {
+    // Not implemented for PostgreSQL
+    return Promise.resolve(new ArrayBuffer(0));
+  }
+
+  async exec(query: string): Promise<D1ExecResult> {
     const statements = query.split(';').filter(s => s.trim());
     const results: any[] = [];
     
@@ -37,6 +50,8 @@ export class PostgresD1Database implements D1Database {
             meta: {
               changes: result.rowCount || 0,
               last_insert_rowid: result.rows[0]?.id || null,
+              last_row_id: result.rows[0]?.id || null,
+              changed_db: false,
               duration: 0,
               rows_read: result.rowCount || 0,
               rows_written: result.rowCount || 0,
@@ -57,7 +72,9 @@ export class PostgresD1Database implements D1Database {
         size_after: 0,
       },
       results,
-    } as D1Result;
+      count: results.length,
+      duration: 0,
+    } as D1ExecResult;
   }
 
   async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
@@ -111,12 +128,14 @@ class PostgresD1PreparedStatement implements D1PreparedStatement {
         meta: {
           changes: result.rowCount || 0,
           last_insert_rowid: result.rows[0]?.id || null,
+          last_row_id: result.rows[0]?.id || null,
+          changed_db: false,
           duration: 0,
           rows_read: 0,
           rows_written: result.rowCount || 0,
           size_after: 0,
         },
-      } as D1Result<T>;
+      } as unknown as D1Result<T>;
     } catch (error: any) {
       console.error('Error in run():', error.message);
       throw error;
@@ -142,9 +161,15 @@ class PostgresD1PreparedStatement implements D1PreparedStatement {
     }
   }
 
-  async raw<T = unknown>(): Promise<T[]> {
+  async raw<T = unknown[]>(options?: { columnNames?: false }): Promise<T[]>;
+  async raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
+  async raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
     try {
       const result = await this.pool.query(this.query);
+      if (options?.columnNames) {
+        const columnNames = result.fields?.map(f => f.name) || [];
+        return [columnNames, ...result.rows] as [string[], ...T[]];
+      }
       return result.rows as T[];
     } catch (error: any) {
       console.error('Error in raw():', error.message);
@@ -197,12 +222,14 @@ class BoundPostgresD1PreparedStatement implements D1PreparedStatement {
         meta: {
           changes: result.rowCount || 0,
           last_insert_rowid: result.rows[0]?.id || null,
+          last_row_id: result.rows[0]?.id || null,
+          changed_db: false,
           duration: 0,
           rows_read: 0,
           rows_written: result.rowCount || 0,
           size_after: 0,
         },
-      } as D1Result<T>;
+      } as unknown as D1Result<T>;
     } catch (error: any) {
       console.error('Error in bound run():', error.message);
       throw error;
@@ -228,9 +255,15 @@ class BoundPostgresD1PreparedStatement implements D1PreparedStatement {
     }
   }
 
-  async raw<T = unknown>(): Promise<T[]> {
+  async raw<T = unknown[]>(options?: { columnNames?: false }): Promise<T[]>;
+  async raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
+  async raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
     try {
       const result = await this.pool.query(this.query, this.values);
+      if (options?.columnNames) {
+        const columnNames = result.fields?.map(f => f.name) || [];
+        return [columnNames, ...result.rows] as [string[], ...T[]];
+      }
       return result.rows as T[];
     } catch (error: any) {
       console.error('Error in bound raw():', error.message);

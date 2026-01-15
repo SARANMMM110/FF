@@ -37,7 +37,20 @@ export class MysqlD1Database implements D1Database {
     return new MysqlD1PreparedStatement(this.pool, query);
   }
 
-  async exec(query: string): Promise<D1Result> {
+  withSession(constraintOrBookmark?: string): D1DatabaseSession {
+    // Not implemented for MySQL - return a minimal session
+    return {
+      ...this,
+      getBookmark: () => '',
+    } as D1DatabaseSession;
+  }
+
+  dump(): Promise<ArrayBuffer> {
+    // Not implemented for MySQL
+    return Promise.resolve(new ArrayBuffer(0));
+  }
+
+  async exec(query: string): Promise<D1ExecResult> {
     const statements = query.split(';').filter(s => s.trim());
     const results: any[] = [];
     
@@ -75,7 +88,9 @@ export class MysqlD1Database implements D1Database {
         size_after: 0,
       },
       results,
-    } as D1Result;
+      count: results.length,
+      duration: 0,
+    } as D1ExecResult;
   }
 
   async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
@@ -129,12 +144,14 @@ class MysqlD1PreparedStatement implements D1PreparedStatement {
         meta: {
           changes: result.affectedRows || 0,
           last_insert_rowid: result.insertId || null,
+          last_row_id: result.insertId || null,
+          changed_db: false,
           duration: 0,
           rows_read: 0,
           rows_written: result.affectedRows || 0,
           size_after: 0,
         },
-      } as D1Result<T>;
+      } as unknown as D1Result<T>;
     } catch (error: any) {
       console.error('Error in run():', error.message);
       throw error;
@@ -160,10 +177,25 @@ class MysqlD1PreparedStatement implements D1PreparedStatement {
     }
   }
 
-  async raw<T = unknown>(): Promise<T[]> {
+  async raw<T = unknown[]>(options?: { columnNames?: false }): Promise<T[]>;
+  async raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
+  async raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
     try {
       const [rows]: any = await this.pool.execute(this.query);
-      return rows as T[];
+      const typedRows = rows as T[];
+      if (options?.columnNames) {
+        const columnNames: string[] = [];
+        try {
+          const firstRow = typedRows[0] as any;
+          if (firstRow) {
+            columnNames.push(...Object.keys(firstRow));
+          }
+        } catch {
+          // Fallback if we can't get column names
+        }
+        return [columnNames, ...typedRows] as [string[], ...T[]];
+      }
+      return typedRows;
     } catch (error: any) {
       console.error('Error in raw():', error.message);
       throw error;
@@ -215,12 +247,14 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
         meta: {
           changes: result.affectedRows || 0,
           last_insert_rowid: result.insertId || null,
+          last_row_id: result.insertId || null,
+          changed_db: false,
           duration: 0,
           rows_read: 0,
           rows_written: result.affectedRows || 0,
           size_after: 0,
         },
-      } as D1Result<T>;
+      } as unknown as D1Result<T>;
     } catch (error: any) {
       console.error('Error in bound run():', error.message);
       throw error;
@@ -246,10 +280,25 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
     }
   }
 
-  async raw<T = unknown>(): Promise<T[]> {
+  async raw<T = unknown[]>(options?: { columnNames?: false }): Promise<T[]>;
+  async raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
+  async raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
     try {
       const [rows]: any = await this.pool.execute(this.query, this.values);
-      return rows as T[];
+      const typedRows = rows as T[];
+      if (options?.columnNames) {
+        const columnNames: string[] = [];
+        try {
+          const firstRow = typedRows[0] as any;
+          if (firstRow) {
+            columnNames.push(...Object.keys(firstRow));
+          }
+        } catch {
+          // Fallback if we can't get column names
+        }
+        return [columnNames, ...typedRows] as [string[], ...T[]];
+      }
+      return typedRows;
     } catch (error: any) {
       console.error('Error in bound raw():', error.message);
       throw error;

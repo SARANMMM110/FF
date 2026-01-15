@@ -1,4 +1,24 @@
-import type { Task } from "@/shared/types";
+// Task type definition (inline since shared types path may not resolve)
+interface Task {
+  id: number;
+  user_id: string;
+  title: string;
+  description: string | null;
+  status: "todo" | "in_progress" | "completed";
+  priority: number;
+  estimated_minutes: number | null;
+  actual_minutes: number;
+  is_completed: number;
+  completed_at: string | null;
+  project: string | null;
+  due_date: string | null;
+  tags: string | null;
+  repeat?: "none" | "daily" | "weekly" | "monthly";
+  repeatDetail?: string | string[] | null;
+  goalPoints?: number;
+  created_at: string;
+  updated_at: string;
+}
 
 /**
  * Notion Integration

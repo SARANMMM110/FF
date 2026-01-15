@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { createLocalAuthMiddleware } from "../server/auth/localAuth";
+import { createLocalAuthMiddleware, type LocalUser } from "../server/auth/localAuth";
 import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 
 interface Env {
@@ -9,9 +9,13 @@ interface Env {
   R2_BUCKET: R2Bucket;
 }
 
+interface Variables {
+  user?: LocalUser;
+}
+
 const authMiddleware = createLocalAuthMiddleware();
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Profile schema
 const UpdateProfileSchema = z.object({
@@ -220,8 +224,9 @@ app.post("/api/profile/photo", authMiddleware, async (c) => {
     const fileExtension = file.name.split(".").pop() || "jpg";
     const filename = `profile-photos/${user!.id}/${Date.now()}.${fileExtension}`;
 
-    // Upload to R2
-    await c.env.R2_BUCKET.put(filename, file, {
+    // Upload to R2 - convert File to ArrayBuffer for compatibility
+    const fileBuffer = await file.arrayBuffer();
+    await c.env.R2_BUCKET.put(filename, fileBuffer, {
       httpMetadata: {
         contentType: file.type,
       },
@@ -264,7 +269,7 @@ app.get("/api/profile/photo/:filename", async (c) => {
     }
 
     const headers = new Headers();
-    object.writeHttpMetadata(headers);
+    object.writeHttpMetadata(headers as any);
     headers.set("etag", object.httpEtag);
     headers.set("cache-control", "public, max-age=31536000");
 

@@ -3,7 +3,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { createLocalAuthMiddleware, generateSessionToken, getCurrentUserFromToken, SESSION_TOKEN_COOKIE_NAME } from "../server/auth/localAuth";
+import { createLocalAuthMiddleware, generateSessionToken, getCurrentUserFromToken, SESSION_TOKEN_COOKIE_NAME, type LocalUser } from "../server/auth/localAuth";
 import { getGoogleOAuthRedirectUrl, exchangeGoogleCodeForTokens, getGoogleUserInfo } from "../server/auth/googleOAuth";
 import { processRecurringTasks, calculateNextOccurrence } from "./recurring-tasks";
 import { syncTask as syncTaskToNotion } from "./lib/integrations/notion";
@@ -24,10 +24,20 @@ interface Env {
   NOTION_INTEGRATION_SECRET?: string;
 }
 
+interface Variables {
+  user?: LocalUser;
+  admin?: {
+    id: number;
+    username: string;
+    email: string;
+    is_super_admin: boolean;
+  };
+}
+
 // Create local auth middleware
 const authMiddleware = createLocalAuthMiddleware();
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // CORS middleware
 app.use('*', async (c, next) => {
@@ -57,7 +67,7 @@ app.use('*', async (c, next) => {
 
   // Handle preflight requests
   if (c.req.method === 'OPTIONS') {
-    return c.text('', 204);
+    return new Response(null, { status: 204 });
   }
 
   await next();

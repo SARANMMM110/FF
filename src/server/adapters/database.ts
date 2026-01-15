@@ -18,7 +18,7 @@ export class NodeD1Database implements D1Database {
     return new NodeD1PreparedStatement(this.db, query);
   }
 
-  exec(query: string): D1Result {
+  async exec(query: string): Promise<D1ExecResult> {
     const statements = query.split(';').filter(s => s.trim());
     const results: any[] = [];
     
@@ -31,6 +31,8 @@ export class NodeD1Database implements D1Database {
           meta: {
             changes: result.changes,
             last_insert_rowid: result.lastInsertRowid,
+            last_row_id: result.lastInsertRowid,
+            changed_db: false,
             duration: 0,
             rows_read: 0,
             rows_written: result.changes,
@@ -47,7 +49,9 @@ export class NodeD1Database implements D1Database {
         size_after: 0,
       },
       results,
-    } as D1Result;
+      count: results.length,
+      duration: 0,
+    } as D1ExecResult;
   }
 
   batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
@@ -56,6 +60,19 @@ export class NodeD1Database implements D1Database {
 
   close(): void {
     this.db.close();
+  }
+
+  withSession(constraintOrBookmark?: string): D1DatabaseSession {
+    // Not implemented for local SQLite - return a minimal session
+    return {
+      ...this,
+      getBookmark: () => '',
+    } as D1DatabaseSession;
+  }
+
+  dump(): Promise<ArrayBuffer> {
+    // Not implemented for local SQLite
+    return Promise.resolve(new ArrayBuffer(0));
   }
 
   get raw(): Database.Database {
@@ -107,12 +124,14 @@ class NodeD1PreparedStatement implements D1PreparedStatement {
       meta: {
         changes: result.changes,
         last_insert_rowid: result.lastInsertRowid,
+        last_row_id: result.lastInsertRowid,
+        changed_db: false,
         duration: 0,
         rows_read: 0,
         rows_written: result.changes,
         size_after: 0,
       },
-    } as D1Result<T>);
+    } as unknown as D1Result<T>);
   }
 
   all<T = unknown>(): Promise<D1Result<T>> {
@@ -131,9 +150,25 @@ class NodeD1PreparedStatement implements D1PreparedStatement {
     } as D1Result<T>);
   }
 
-  raw<T = unknown>(): Promise<T[]> {
+  raw<T = unknown[]>(options?: { columnNames?: false }): Promise<T[]>;
+  raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
+  raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
     const stmt = this.getStatement();
-    return Promise.resolve(stmt.all() as T[]);
+    const rows = stmt.all() as T[];
+    if (options?.columnNames) {
+      // Get column names from the statement
+      const columnNames: string[] = [];
+      try {
+        const firstRow = rows[0] as any;
+        if (firstRow) {
+          columnNames.push(...Object.keys(firstRow));
+        }
+      } catch {
+        // Fallback if we can't get column names
+      }
+      return Promise.resolve([columnNames, ...rows] as [string[], ...T[]]);
+    }
+    return Promise.resolve(rows);
   }
 }
 
@@ -184,12 +219,14 @@ class BoundD1PreparedStatement implements D1PreparedStatement {
       meta: {
         changes: result.changes,
         last_insert_rowid: result.lastInsertRowid,
+        last_row_id: result.lastInsertRowid,
+        changed_db: false,
         duration: 0,
         rows_read: 0,
         rows_written: result.changes,
         size_after: 0,
       },
-    } as D1Result<T>);
+    } as unknown as D1Result<T>);
   }
 
   all<T = unknown>(): Promise<D1Result<T>> {
@@ -207,8 +244,23 @@ class BoundD1PreparedStatement implements D1PreparedStatement {
     } as D1Result<T>);
   }
 
-  raw<T = unknown>(): Promise<T[]> {
-    return Promise.resolve(this.stmt.all(...this.values) as T[]);
+  raw<T = unknown[]>(options?: { columnNames?: false }): Promise<T[]>;
+  raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
+  raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
+    const rows = this.stmt.all(...this.values) as T[];
+    if (options?.columnNames) {
+      const columnNames: string[] = [];
+      try {
+        const firstRow = rows[0] as any;
+        if (firstRow) {
+          columnNames.push(...Object.keys(firstRow));
+        }
+      } catch {
+        // Fallback if we can't get column names
+      }
+      return Promise.resolve([columnNames, ...rows] as [string[], ...T[]]);
+    }
+    return Promise.resolve(rows);
   }
 }
 
