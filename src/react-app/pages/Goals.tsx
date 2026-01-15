@@ -5,6 +5,7 @@ import Layout from "@/react-app/components/Layout";
 import { useSubscription } from "@/react-app/hooks/useSubscription";
 import ProUpgradeModal from "@/react-app/components/ProUpgradeModal";
 import { Target, Plus, Trophy, TrendingUp, Calendar, CheckCircle2, Circle, Trash2 } from "lucide-react";
+import { apiFetch } from "@/react-app/utils/api";
 
 interface Goal {
   id: number;
@@ -52,7 +53,7 @@ export default function Goals() {
 
   const fetchGoals = async () => {
     try {
-      const response = await fetch("/api/goals");
+      const response = await apiFetch("api/goals");
       if (response.ok) {
         const data = await response.json();
         setGoals(data.goals || []);
@@ -308,7 +309,7 @@ function CreateGoalModal({ onClose, onSuccess }: {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/goals", {
+      const response = await apiFetch("api/goals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

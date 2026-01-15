@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Calendar, Clock, AlertCircle, ChevronRight } from "lucide-react";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { useNavigate } from "react-router";
+import { apiFetch } from "@/react-app/utils/api";
 
 interface Task {
   id: number;
@@ -25,7 +26,7 @@ export default function UpcomingTasks() {
 
   const fetchUpcomingTasks = async () => {
     try {
-      const response = await fetch("/api/tasks");
+      const response = await apiFetch("api/tasks");
       const allTasks = await response.json();
       
       // Filter for upcoming tasks (not completed, with due dates)

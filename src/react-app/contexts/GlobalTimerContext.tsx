@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { apiFetch } from "@/react-app/utils/api";
 
 export type TimerMode = "focus" | "short_break" | "long_break";
 export type TimerStrategy = "classic" | "pomodoro" | "custom";
@@ -94,10 +95,9 @@ export function GlobalTimerProvider({ children }: { children: React.ReactNode })
 
     try {
       // Create session in backend
-      const response = await fetch("/api/focus-sessions", {
+      const response = await apiFetch("api/focus-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           task_id: taskId || null,
           start_time: new Date().toISOString(),

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { useToast } from "@/react-app/hooks/useToast";
+import { apiFetch } from "@/react-app/utils/api";
 
 export default function AdminLoginPage() {
   const [username, setUsername] = useState("");
@@ -14,7 +15,7 @@ export default function AdminLoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/admin/login", {
+      const response = await apiFetch("api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),

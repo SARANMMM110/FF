@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { Task } from "@/shared/types";
 import { taskStateManager } from "@/react-app/lib/taskStateManager";
+import { apiFetch } from "@/react-app/utils/api";
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -16,7 +17,7 @@ export function useTasks() {
       setTasks(localTasks);
       
       // Then sync with API
-      const response = await fetch("/api/tasks");
+      const response = await apiFetch("api/tasks");
       if (!response.ok) throw new Error("Failed to fetch tasks");
       const apiTasks = await response.json();
       
@@ -44,7 +45,7 @@ export function useTasks() {
     tags?: string[];
   }) => {
     try {
-      const response = await fetch("/api/tasks", {
+      const response = await apiFetch("api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(task),
@@ -62,7 +63,7 @@ export function useTasks() {
   const updateTask = async (id: number, updates: Partial<Task>) => {
     try {
       // Sync with API first
-      const response = await fetch(`/api/tasks/${id}`, {
+      const response = await apiFetch(`api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -82,7 +83,7 @@ export function useTasks() {
 
   const deleteTask = async (id: number) => {
     try {
-      const response = await fetch(`/api/tasks/${id}`, {
+      const response = await apiFetch(`api/tasks/${id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete task");

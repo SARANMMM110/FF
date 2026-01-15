@@ -244,10 +244,12 @@ export function getAuthProvider(): AuthProvider {
  * 
  * This would implement actual API calls to your authentication service.
  */
+import { apiFetch } from "@/react-app/utils/api";
+
 export class RealAuthProvider implements AuthProvider {
   async login(email: string, password: string): Promise<{ user: User; token: string }> {
     // TODO: Implement real API call
-    const response = await fetch("/api/auth/login", {
+    const response = await apiFetch("api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -263,7 +265,7 @@ export class RealAuthProvider implements AuthProvider {
 
   async register(email: string, password: string, name: string): Promise<{ user: User; token: string }> {
     // TODO: Implement real API call
-    const response = await fetch("/api/auth/register", {
+    const response = await apiFetch("api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, name }),
@@ -279,12 +281,12 @@ export class RealAuthProvider implements AuthProvider {
 
   async logout(): Promise<void> {
     // TODO: Implement real API call
-    await fetch("/api/auth/logout", { method: "POST" });
+    await apiFetch("api/auth/logout", { method: "POST" });
   }
 
   async verifyToken(token: string): Promise<User> {
     // TODO: Implement real API call
-    const response = await fetch("/api/auth/verify", {
+    const response = await apiFetch("api/auth/verify", {
       headers: { "Authorization": `Bearer ${token}` },
     });
 

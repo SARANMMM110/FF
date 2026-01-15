@@ -3,6 +3,8 @@
  * Provides real calendar data from Google Calendar API
  */
 
+import { apiFetch } from "@/react-app/utils/api";
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -26,7 +28,7 @@ export interface CalendarConnection {
  */
 export async function getCalendarStatus(): Promise<CalendarConnection> {
   try {
-    const response = await fetch("/api/calendar/status");
+    const response = await apiFetch("api/calendar/status");
     if (!response.ok) {
       throw new Error("Failed to check calendar status");
     }
@@ -41,7 +43,7 @@ export async function getCalendarStatus(): Promise<CalendarConnection> {
  * Get Google Calendar OAuth URL
  */
 export async function getCalendarAuthUrl(): Promise<string> {
-  const response = await fetch("/api/calendar/auth-url");
+  const response = await apiFetch("api/calendar/auth-url");
   if (!response.ok) {
     throw new Error("Failed to get calendar auth URL");
   }
@@ -53,7 +55,7 @@ export async function getCalendarAuthUrl(): Promise<string> {
  * Disconnect calendar
  */
 export async function disconnectCalendar(): Promise<void> {
-  const response = await fetch("/api/calendar/disconnect", {
+  const response = await apiFetch("api/calendar/disconnect", {
     method: "DELETE",
   });
   
@@ -75,7 +77,7 @@ export async function getCalendarEvents(from?: Date, to?: Date): Promise<Calenda
     params.set("to", to.toISOString());
   }
 
-  const response = await fetch(`/api/calendar/events?${params.toString()}`);
+  const response = await apiFetch(`api/calendar/events?${params.toString()}`);
   
   if (response.status === 401) {
     // Calendar not connected

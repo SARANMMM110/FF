@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { AnalyticsData } from '@/shared/types';
+import { apiFetch } from '@/react-app/utils/api';
 
 interface DashboardStats {
   today_focus_minutes: number;
@@ -53,10 +54,10 @@ export function useAnalytics({ dateRange, enabled = true }: UseAnalyticsOptions)
         }
 
         const [analyticsRes, statsRes, modeRes, projectRes] = await Promise.all([
-          fetch(`/api/analytics?${params}`, { credentials: 'include' }),
-          fetch("/api/dashboard-stats", { credentials: 'include' }),
-          fetch(`/api/analytics/by-mode?${params}`, { credentials: 'include' }),
-          fetch(`/api/analytics/by-project?${params}`, { credentials: 'include' }),
+          apiFetch(`api/analytics?${params}`),
+          apiFetch("api/dashboard-stats"),
+          apiFetch(`api/analytics/by-mode?${params}`),
+          apiFetch(`api/analytics/by-project?${params}`),
         ]);
 
         // Handle each response

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/react-app/contexts/AuthContext";
 import Layout from "@/react-app/components/Layout";
 import { useNavigate } from "react-router";
+import { apiFetch } from "@/react-app/utils/api";
 
 export default function FixUserData() {
   const { user } = useAuth();
@@ -20,17 +21,14 @@ export default function FixUserData() {
         setStatus("Checking database...");
         
         // Check current user info
-        const meResponse = await fetch("/api/users/me", {
-          credentials: "include",
-        });
+        const meResponse = await apiFetch("api/users/me");
         const meData = await meResponse.json();
         setDetails(meData);
         
         // Try to create a test session to trigger user creation
         setStatus("Creating user record if needed...");
-        const sessionResponse = await fetch("/api/test/create-session", {
+        const sessionResponse = await apiFetch("api/test/create-session", {
           method: "POST",
-          credentials: "include",
         });
         
         if (sessionResponse.ok) {

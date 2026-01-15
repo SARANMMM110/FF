@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/react-app/utils/api';
 
 interface SubscriptionData {
   plan_id: string;
@@ -19,7 +20,7 @@ export function useSubscription() {
   const fetchSubscription = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/user/subscription');
+      const response = await apiFetch('api/user/subscription');
       
       if (!response.ok) {
         throw new Error('Failed to fetch subscription');

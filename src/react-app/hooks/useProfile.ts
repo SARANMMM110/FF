@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/react-app/contexts/AuthContext";
+import { apiFetch } from "@/react-app/utils/api";
 
 export interface UserProfile {
   id: number;
@@ -32,9 +33,7 @@ export function useProfile() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/profile", {
-        credentials: "include",
-      });
+      const response = await apiFetch("api/profile");
       
       if (response.ok) {
         const profileData = await response.json();
@@ -53,13 +52,12 @@ export function useProfile() {
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     try {
-      const response = await fetch("/api/profile", {
+      const response = await apiFetch("api/profile", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(updates),
-        credentials: "include",
       });
 
       if (response.ok) {
@@ -80,10 +78,9 @@ export function useProfile() {
       const formData = new FormData();
       formData.append("photo", file);
 
-      const response = await fetch("/api/profile/photo", {
+      const response = await apiFetch("api/profile/photo", {
         method: "POST",
         body: formData,
-        credentials: "include",
       });
 
       if (response.ok) {

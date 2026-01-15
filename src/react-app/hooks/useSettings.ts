@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { UserSettings } from "@/shared/types";
+import { apiFetch } from "@/react-app/utils/api";
 
 export function useSettings() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -9,7 +10,7 @@ export function useSettings() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/settings");
+      const response = await apiFetch("api/settings");
       if (!response.ok) throw new Error("Failed to fetch settings");
       const data = await response.json();
       setSettings(data);
@@ -23,7 +24,7 @@ export function useSettings() {
 
   const updateSettings = async (updates: Partial<UserSettings>) => {
     try {
-      const response = await fetch("/api/settings", {
+      const response = await apiFetch("api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),

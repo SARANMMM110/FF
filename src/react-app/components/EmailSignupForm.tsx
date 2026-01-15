@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Mail, ArrowRight, CheckCircle, AlertCircle } from "lucide-react";
+import { apiFetch } from "@/react-app/utils/api";
 
 interface EmailSignupFormProps {
   source?: string;
@@ -22,7 +23,7 @@ export default function EmailSignupForm({ source = "website", onSuccess, classNa
     setStatus("idle");
 
     try {
-      const response = await fetch("/api/email-signup", {
+      const response = await apiFetch("api/email-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

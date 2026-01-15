@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/react-app/hooks/useToast";
 import { ToastContainer } from "@/react-app/components/Toast";
+import { apiFetch } from "@/react-app/utils/api";
 
 interface AdminStats {
   total_users: number;
@@ -104,7 +105,7 @@ export default function AdminDashboardPage() {
     }
 
     try {
-      const response = await fetch("/api/admin/me", {
+      const response = await apiFetch("api/admin/me", {
         headers: getAuthHeaders()
       });
 
@@ -129,8 +130,8 @@ export default function AdminDashboardPage() {
     setIsLoading(true);
     try {
       const [statsRes, usersRes] = await Promise.all([
-        fetch("/api/admin/stats", { headers: getAuthHeaders() }),
-        fetch(`/api/admin/users?page=${page}&limit=${USERS_PER_PAGE}`, { headers: getAuthHeaders() })
+        apiFetch("api/admin/stats", { headers: getAuthHeaders() }),
+        apiFetch(`api/admin/users?page=${page}&limit=${USERS_PER_PAGE}`, { headers: getAuthHeaders() })
       ]);
 
       if (statsRes.ok) {
@@ -159,7 +160,7 @@ export default function AdminDashboardPage() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/admin/logout", {
+      await apiFetch("api/admin/logout", {
         method: "POST",
         headers: getAuthHeaders()
       });

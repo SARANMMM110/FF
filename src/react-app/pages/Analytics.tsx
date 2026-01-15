@@ -8,6 +8,7 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Toolti
 import { useAnalytics } from "@/react-app/hooks/useAnalytics";
 import { useSubscription } from "@/react-app/hooks/useSubscription";
 import ProUpgradeModal from "@/react-app/components/ProUpgradeModal";
+import { apiFetch } from "@/react-app/utils/api";
 
 export default function Analytics() {
   const { user, isPending } = useAuth();
@@ -37,7 +38,7 @@ export default function Analytics() {
     const fetchAllSessions = async () => {
       try {
         setLoadingSessions(true);
-        const response = await fetch("/api/focus-sessions", { credentials: "include" });
+        const response = await apiFetch("api/focus-sessions");
         if (response.ok) {
           const data = await response.json();
           // Sort by start_time descending
@@ -127,9 +128,7 @@ export default function Analytics() {
 
   const handleExportTasks = async () => {
     try {
-      const response = await fetch("/api/export/tasks", {
-        credentials: 'include',
-      });
+      const response = await apiFetch("api/export/tasks");
       
       if (!response.ok) {
         throw new Error('Export failed');

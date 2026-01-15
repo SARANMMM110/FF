@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/react-app/hooks/useToast";
 import { ToastContainer } from "@/react-app/components/Toast";
+import { apiFetch } from "@/react-app/utils/api";
 
 interface RegistrationCode {
   id: number;
@@ -56,7 +57,7 @@ export default function AdminRegistrationCodes() {
     }
 
     try {
-      const response = await fetch("/api/admin/me", {
+      const response = await apiFetch("api/admin/me", {
         headers: getAuthHeaders()
       });
 
@@ -76,7 +77,7 @@ export default function AdminRegistrationCodes() {
   const loadCodes = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/admin/registration-codes", {
+      const response = await apiFetch("api/admin/registration-codes", {
         headers: getAuthHeaders()
       });
 
@@ -93,7 +94,7 @@ export default function AdminRegistrationCodes() {
 
   const createCode = async (formData: any) => {
     try {
-      const response = await fetch("/api/admin/registration-codes", {
+      const response = await apiFetch("api/admin/registration-codes", {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify(formData)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/react-app/contexts/AuthContext";
 import Layout from "@/react-app/components/Layout";
+import { apiFetch } from "@/react-app/utils/api";
 
 export default function AnalyticsTest() {
   const { user } = useAuth();
@@ -11,9 +12,8 @@ export default function AnalyticsTest() {
   const createTestSession = async () => {
     try {
       setTestResult("Creating test session...");
-      const response = await fetch("/api/test/create-session", {
+      const response = await apiFetch("api/test/create-session", {
         method: "POST",
-        credentials: "include",
       });
       const data = await response.json();
       setTestResult(JSON.stringify(data, null, 2));
@@ -27,9 +27,7 @@ export default function AnalyticsTest() {
 
   const loadAnalytics = async () => {
     try {
-      const response = await fetch("/api/analytics", {
-        credentials: "include",
-      });
+      const response = await apiFetch("api/analytics");
       const data = await response.json();
       setAnalytics(data);
     } catch (error) {
@@ -40,11 +38,11 @@ export default function AnalyticsTest() {
   const checkDatabase = async () => {
     try {
       // Get all sessions with end_time
-      const completedRes = await fetch("/api/focus-sessions", { credentials: "include" });
+      const completedRes = await apiFetch("api/focus-sessions");
       const completedSessions = await completedRes.json();
       
       // Get dashboard stats
-      const statsRes = await fetch("/api/dashboard-stats", { credentials: "include" });
+      const statsRes = await apiFetch("api/dashboard-stats");
       const stats = await statsRes.json();
 
       setDbCheck({

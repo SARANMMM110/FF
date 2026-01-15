@@ -14,6 +14,7 @@ import MinimalFocusMode from "@/react-app/components/MinimalFocusMode";
 import FocusGuardWarning from "@/react-app/components/FocusGuardWarning";
 import CreateTaskModal from "@/react-app/components/CreateTaskModal";
 import { ToastContainer } from "@/react-app/components/Toast";
+import { apiFetch } from "@/react-app/utils/api";
 
 import EmptyState from "@/react-app/components/EmptyState";
 import {
@@ -106,7 +107,7 @@ export default function Focus() {
       
       // Record distraction to backend
       try {
-        await fetch("/api/focus-distractions", {
+        await apiFetch("api/focus-distractions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

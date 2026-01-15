@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { UserSettings } from "@/shared/types";
+import { apiFetch } from "@/react-app/utils/api";
 
 export type TimerMode = "focus" | "short_break" | "long_break";
 
@@ -30,7 +31,7 @@ export function useTimer(settings: UserSettings | null) {
 
   const startSession = async (taskId?: number) => {
     try {
-      const response = await fetch("/api/focus-sessions", {
+      const response = await apiFetch("api/focus-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -53,7 +54,7 @@ export function useTimer(settings: UserSettings | null) {
 
     try {
       const duration = Math.round((getDuration(mode) - secondsLeft) / 60);
-      await fetch(`/api/focus-sessions/${currentSessionId}`, {
+      await apiFetch(`api/focus-sessions/${currentSessionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

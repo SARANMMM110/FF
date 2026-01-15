@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Clock, CheckSquare, Target, Calendar } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { apiFetch } from "@/react-app/utils/api";
 
 interface ActivityItem {
   id: string;
@@ -22,11 +23,11 @@ export default function RecentActivity() {
   const fetchRecentActivity = async () => {
     try {
       // Get recent completed tasks
-      const tasksResponse = await fetch("/api/tasks");
+      const tasksResponse = await apiFetch("api/tasks");
       const tasks = await tasksResponse.json();
       
       // Get recent focus sessions
-      const sessionsResponse = await fetch("/api/focus-sessions?limit=10");
+      const sessionsResponse = await apiFetch("api/focus-sessions?limit=10");
       const sessions = await sessionsResponse.json();
 
       const recentTasks = tasks

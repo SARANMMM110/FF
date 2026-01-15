@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useTheme } from "@/react-app/contexts/ThemeContext";
 import { useProfileContext } from "@/react-app/contexts/ProfileContext";
 import GlobalTimerWidget from "@/react-app/components/GlobalTimerWidget";
+import { apiFetch } from "@/react-app/utils/api";
 import { 
   Zap, 
   Moon, 
@@ -37,8 +38,8 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
     const fetchUserData = async () => {
       try {
         const [streakResponse, planResponse] = await Promise.all([
-          fetch("/api/streak"),
-          fetch("/api/user/subscription")
+          apiFetch("api/streak"),
+          apiFetch("api/user/subscription")
         ]);
         
         if (streakResponse.ok) {

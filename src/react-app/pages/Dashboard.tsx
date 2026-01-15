@@ -12,6 +12,7 @@ import CreateTaskModal from "@/react-app/components/CreateTaskModal";
 import { useToast } from "@/react-app/hooks/useToast";
 import { ToastContainer } from "@/react-app/components/Toast";
 import { Loader2, Timer, CheckSquare, TrendingUp, Zap, Clock, Flame, Target, Sparkles, Star } from "lucide-react";
+import { apiFetch } from "@/react-app/utils/api";
 
 interface DashboardStats {
   today_focus_minutes: number;
@@ -50,8 +51,8 @@ export default function Dashboard() {
       try {
         setStatsLoading(true);
         const [statsResponse, streakResponse] = await Promise.all([
-          fetch("/api/dashboard-stats"),
-          fetch("/api/streak")
+          apiFetch("api/dashboard-stats"),
+          apiFetch("api/streak")
         ]);
         
         if (statsResponse.ok) {

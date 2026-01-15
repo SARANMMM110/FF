@@ -8,9 +8,8 @@ export function useRecurringTasks() {
   useEffect(() => {
     const processRecurringTasks = async () => {
       try {
-        const response = await fetch("/api/recurring-tasks/process", {
+        const response = await apiFetch("api/recurring-tasks/process", {
           method: "POST",
-          credentials: "include",
         });
 
         if (response.ok) {

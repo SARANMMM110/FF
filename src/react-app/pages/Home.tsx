@@ -32,14 +32,16 @@ export default function Home() {
     const code = searchParams.get('code');
     if (code && !plan) {
       // Validate the code to get the plan
-      fetch(`/api/registration-codes/${code}/validate`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.valid && data.plan_id) {
-            setSpecialPlan(data.plan_id);
-          }
-        })
-        .catch(err => console.error("Failed to validate registration code:", err));
+      import('@/react-app/utils/api').then(({ apiFetch }) => {
+        apiFetch(`api/registration-codes/${code}/validate`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.valid && data.plan_id) {
+              setSpecialPlan(data.plan_id);
+            }
+          })
+          .catch(err => console.error("Failed to validate registration code:", err));
+      });
     }
   }, [searchParams]);
 
