@@ -131,10 +131,53 @@ const migrationsDir = path.join(__dirname, '../migrations');
         }
         
         if (isMySQL) {
+          // Track multi-column UNIQUE constraints on TEXT columns
+          const multiColumnUniqueConstraints: Array<{table: string, columns: string[]}> = [];
+          
+          // Extract multi-column UNIQUE constraints before conversion
+          const tableMatchesForMultiUnique = sql.matchAll(/CREATE TABLE\s+(\w+)\s*\(([^)]+)\)/gi);
+          for (const match of tableMatchesForMultiUnique) {
+            const tableName = match[1];
+            const columnsDef = match[2];
+            
+            // Look for UNIQUE(column1, column2, ...) patterns
+            const uniqueMatch = columnsDef.match(/UNIQUE\s*\(([^)]+)\)/i);
+            if (uniqueMatch) {
+              const uniqueCols = uniqueMatch[1].split(',').map((col: string) => col.trim());
+              // Check if any of these columns are TEXT
+              const textCols = textColumns.get(tableName) || new Set<string>();
+              const hasTextCols = uniqueCols.some((col: string) => textCols.has(col));
+              
+              if (hasTextCols) {
+                multiColumnUniqueConstraints.push({
+                  table: tableName,
+                  columns: uniqueCols
+                });
+              }
+            }
+          }
+          
           // MySQL conversions
           // Remove UNIQUE from TEXT columns (MySQL requires key length, handle via UNIQUE INDEX instead)
           sql = sql.replace(/TEXT\s+NOT\s+NULL\s+UNIQUE/gi, 'TEXT NOT NULL');
           sql = sql.replace(/TEXT\s+UNIQUE/gi, 'TEXT');
+          // Remove multi-column UNIQUE constraints that involve TEXT columns
+          // First, use a general pattern to remove ALL UNIQUE(...) that contain TEXT columns
+          sql = sql.replace(/UNIQUE\s*\(([^)]+)\)/gi, (match, columnsStr) => {
+            const cols = columnsStr.split(',').map((c: string) => c.trim());
+            // Check if any of these columns are TEXT in any table
+            for (const [tableName, textCols] of textColumns.entries()) {
+              if (cols.some((col: string) => textCols.has(col))) {
+                return ''; // Remove this UNIQUE constraint
+              }
+            }
+            return match; // Keep it if no TEXT columns involved
+          });
+          
+          // Also clean up any trailing commas that might be left
+          sql = sql.replace(/,\s*,/g, ','); // Remove double commas
+          sql = sql.replace(/,\s*\)/g, ')'); // Remove comma before closing paren
+          sql = sql.replace(/\(\s*,/g, '('); // Remove comma after opening paren
           // Remove default values from TEXT columns (MySQL doesn't allow this)
           sql = sql.replace(/TEXT\s+NOT\s+NULL\s+DEFAULT\s+'[^']*'/gi, 'TEXT NOT NULL');
           sql = sql.replace(/TEXT\s+DEFAULT\s+'[^']*'/gi, 'TEXT');
@@ -145,6 +188,25 @@ const migrationsDir = path.join(__dirname, '../migrations');
           sql = sql.replace(/BOOLEAN DEFAULT 1/g, 'BOOLEAN DEFAULT TRUE');
           sql = sql.replace(/INTEGER PRIMARY KEY(?!\s+AUTOINCREMENT)/g, 'INT PRIMARY KEY');
           sql = sql.replace(/TEXT/g, 'TEXT');
+          
+          // Add UNIQUE INDEX statements for multi-column UNIQUE constraints with TEXT columns
+          for (const constraint of multiColumnUniqueConstraints) {
+            const tableName = constraint.table;
+            const textCols = textColumns.get(tableName) || new Set<string>();
+            const indexedCols = constraint.columns.map((col: string) => {
+              if (textCols.has(col)) {
+                return `${col}(255)`;
+              }
+              return col;
+            });
+            const indexName = `idx_${tableName}_${constraint.columns.join('_')}_unique`;
+            
+            // Add UNIQUE INDEX after CREATE TABLE statement
+            sql = sql.replace(
+              new RegExp(`(CREATE TABLE IF NOT EXISTS ${tableName}[^;]+;)`, 'i'),
+              `$1\nCREATE UNIQUE INDEX ${indexName} ON ${tableName}(${indexedCols.join(', ')});`
+            );
+          }
         } else {
           // PostgreSQL conversions
           sql = sql.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'SERIAL PRIMARY KEY');
