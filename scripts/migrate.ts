@@ -118,8 +118,24 @@ const migrationsDir = path.join(__dirname, '../migrations');
         // Add IF NOT EXISTS to CREATE TABLE statements
         sql = sql.replace(/CREATE TABLE (\w+)/g, 'CREATE TABLE IF NOT EXISTS $1');
         
-        // Add IF NOT EXISTS to CREATE INDEX statements (PostgreSQL only, MySQL doesn't support it)
-        if (!isMySQL) {
+        if (isMySQL) {
+          // MySQL: Add key length to TEXT columns in indexes (required by MySQL)
+          // Pattern: CREATE INDEX name ON table(column) -> CREATE INDEX name ON table(column(255))
+          // This handles single column indexes
+          sql = sql.replace(/CREATE INDEX (\w+) ON (\w+)\((\w+)\)/g, 'CREATE INDEX $1 ON $2($3(255))');
+          // This handles multi-column indexes - add length to all columns
+          sql = sql.replace(/CREATE INDEX (\w+) ON (\w+)\(([^)]+)\)/g, (match, indexName, tableName, columns) => {
+            // Split columns and add (255) to each
+            const cols = columns.split(',').map((col: string) => {
+              const trimmed = col.trim();
+              // If it already has a length, don't add another
+              if (trimmed.includes('(')) return trimmed;
+              return `${trimmed}(255)`;
+            });
+            return `CREATE INDEX ${indexName} ON ${tableName}(${cols.join(', ')})`;
+          });
+        } else {
+          // Add IF NOT EXISTS to CREATE INDEX statements (PostgreSQL only, MySQL doesn't support it)
           sql = sql.replace(/CREATE INDEX (\w+)/g, 'CREATE INDEX IF NOT EXISTS $1');
         }
       }
