@@ -1,9 +1,9 @@
 import { serve } from '@hono/node-server';
 import app from '../worker/index.js';
-import { NodeD1Database } from './adapters/database';
-import { PostgresD1Database } from './adapters/postgres';
-import { MysqlD1Database } from './adapters/mysql';
-import { NodeR2Bucket } from './adapters/storage';
+import { NodeD1Database } from './adapters/database.js';
+import { PostgresD1Database } from './adapters/postgres.js';
+import { MysqlD1Database } from './adapters/mysql.js';
+import { NodeR2Bucket } from './adapters/storage.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';

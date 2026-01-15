@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { createLocalAuthMiddleware, type LocalUser } from "../server/auth/localAuth";
+import { createLocalAuthMiddleware, type LocalUser } from "../server/auth/localAuth.js";
 import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 
 interface Env {
