@@ -101,6 +101,9 @@ for (const migration of migrationFiles) {
   sql = sql.replace(/BOOLEAN DEFAULT 0/g, 'BOOLEAN DEFAULT FALSE');
   sql = sql.replace(/BOOLEAN DEFAULT 1/g, 'BOOLEAN DEFAULT TRUE');
   sql = sql.replace(/INTEGER PRIMARY KEY(?!\s+AUTO_INCREMENT)/g, 'INT PRIMARY KEY');
+  // Convert SQLite INSERT syntax to MySQL
+  sql = sql.replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT IGNORE INTO');
+  sql = sql.replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'REPLACE INTO');
   
   // Add IF NOT EXISTS to CREATE TABLE statements
   sql = sql.replace(/CREATE TABLE (\w+)/g, 'CREATE TABLE IF NOT EXISTS $1');

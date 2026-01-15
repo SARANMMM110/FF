@@ -155,6 +155,17 @@ const migrationsDir = path.join(__dirname, '../migrations');
           sql = sql.replace(/INTEGER PRIMARY KEY(?!\s+AUTOINCREMENT)/g, 'SERIAL PRIMARY KEY');
         }
         
+        // Convert SQLite INSERT syntax to MySQL/PostgreSQL
+        if (isMySQL) {
+          sql = sql.replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT IGNORE INTO');
+          sql = sql.replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'REPLACE INTO');
+        } else if (isPostgres) {
+          // PostgreSQL uses INSERT ... ON CONFLICT DO NOTHING instead
+          sql = sql.replace(/INSERT\s+OR\s+IGNORE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES/gi, 
+            'INSERT INTO $1 ($2) VALUES ON CONFLICT DO NOTHING');
+          sql = sql.replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'INSERT INTO');
+        }
+        
         // Add IF NOT EXISTS to CREATE TABLE statements
         sql = sql.replace(/CREATE TABLE (\w+)/g, 'CREATE TABLE IF NOT EXISTS $1');
         
