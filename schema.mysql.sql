@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   user_id TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT NOT NULL DEFAULT 'todo',
+  status TEXT NOT NULL,
   priority INTEGER DEFAULT 0,
   estimated_minutes INTEGER,
   actual_minutes INTEGER DEFAULT 0,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
   start_time TIMESTAMP NOT NULL,
   end_time TIMESTAMP,
   duration_minutes INTEGER,
-  session_type TEXT NOT NULL DEFAULT 'focus',
+  session_type TEXT NOT NULL,
   notes TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -95,7 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
 
 -- Migration 5
 
-ALTER TABLE focus_sessions ADD COLUMN timer_mode TEXT DEFAULT 'pomodoro';
+ALTER TABLE focus_sessions ADD COLUMN timer_mode TEXT;
 
 
 -- Migration 6
@@ -213,9 +213,9 @@ CREATE TABLE IF NOT EXISTS email_signups (
   id INT AUTO_INCREMENT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   name TEXT,
-  signup_source TEXT NOT NULL DEFAULT 'website',
+  signup_source TEXT NOT NULL,
   marketing_consent BOOLEAN DEFAULT TRUE,
-  status TEXT NOT NULL DEFAULT 'active',
+  status TEXT NOT NULL,
   tags TEXT,
   ip_address TEXT,
   user_agent TEXT,
@@ -287,7 +287,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT,
   google_user_id TEXT,
   profile_picture_url TEXT,
-  signup_source TEXT DEFAULT 'google-oauth',
+  signup_source TEXT,
   last_login_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -328,7 +328,7 @@ ALTER TABLE user_settings ADD COLUMN custom_theme_accent TEXT;
 
 
 -- Migration 19
-ALTER TABLE users ADD COLUMN subscription_plan TEXT DEFAULT 'free';
+ALTER TABLE users ADD COLUMN subscription_plan TEXT;
 
 -- Migration 20
 
@@ -389,7 +389,7 @@ CREATE INDEX IF NOT EXISTS idx_registration_codes_active ON registration_codes(i
 
 -- Migration 23
 
-ALTER TABLE tasks ADD COLUMN repeat TEXT DEFAULT 'none';
+ALTER TABLE tasks ADD COLUMN repeat TEXT;
 ALTER TABLE tasks ADD COLUMN repeat_detail TEXT;
 ALTER TABLE tasks ADD COLUMN parent_recurring_task_id INTEGER;
 ALTER TABLE tasks ADD COLUMN next_occurrence_date DATE;
@@ -405,12 +405,12 @@ ALTER TABLE focus_distractions ADD COLUMN metadata TEXT;
 
 CREATE TABLE IF NOT EXISTS white_label_settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  app_name TEXT DEFAULT 'FocusFlow',
-  app_tagline TEXT DEFAULT 'Master your time, amplify your focus',
+  app_name TEXT,
+  app_tagline TEXT,
   logo_url TEXT,
-  primary_color TEXT DEFAULT '#3B82F6',
-  secondary_color TEXT DEFAULT '#8B5CF6',
-  accent_color TEXT DEFAULT '#F59E0B',
+  primary_color TEXT,
+  secondary_color TEXT,
+  accent_color TEXT,
   custom_domain TEXT,
   hide_powered_by BOOLEAN DEFAULT FALSE,
   support_email TEXT,

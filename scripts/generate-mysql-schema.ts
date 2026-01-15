@@ -49,6 +49,9 @@ for (const migration of migrationFiles) {
   let sql = readFileSync(migration.path, 'utf-8');
   
   // Convert SQLite syntax to MySQL
+  // Remove default values from TEXT columns (MySQL doesn't allow this)
+  sql = sql.replace(/TEXT\s+NOT\s+NULL\s+DEFAULT\s+'[^']*'/gi, 'TEXT NOT NULL');
+  sql = sql.replace(/TEXT\s+DEFAULT\s+'[^']*'/gi, 'TEXT');
   sql = sql.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'INT AUTO_INCREMENT PRIMARY KEY');
   sql = sql.replace(/AUTOINCREMENT/g, 'AUTO_INCREMENT');
   sql = sql.replace(/DATETIME/g, 'TIMESTAMP');
