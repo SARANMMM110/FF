@@ -4,11 +4,18 @@
  */
 
 const getApiBaseUrl = (): string => {
-  // Use environment variable if set, otherwise default to backend server
+  // Priority 1: Use environment variable if set (set during build)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  // Default to backend server URL
+  
+  // Priority 2: In production, use the backend API domain
+  if (import.meta.env.PROD) {
+    // Production backend URL (endpoints already include /api prefix)
+    return 'https://focus.imsocialclub.com';
+  }
+  
+  // Development default
   return 'http://localhost:3000';
 };
 
