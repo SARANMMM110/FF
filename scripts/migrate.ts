@@ -93,6 +93,33 @@ const migrationsDir = path.join(__dirname, '../migrations');
       const isPostgres = !!process.env.DATABASE_URL;
       
       if (isMySQL || isPostgres) {
+        // First, extract table schemas to identify TEXT columns
+        const textColumns = new Map<string, Set<string>>(); // table -> set of TEXT column names
+        
+        if (isMySQL) {
+          // Extract CREATE TABLE statements and identify TEXT columns
+          const tableMatches = sql.matchAll(/CREATE TABLE\s+(\w+)\s*\(([^)]+)\)/gi);
+          for (const match of tableMatches) {
+            const tableName = match[1];
+            const columnsDef = match[2];
+            const textCols = new Set<string>();
+            
+            // Parse column definitions
+            const columnLines = columnsDef.split(',').map((line: string) => line.trim());
+            for (const line of columnLines) {
+              // Match: column_name TEXT ...
+              const colMatch = line.match(/^(\w+)\s+TEXT/i);
+              if (colMatch) {
+                textCols.add(colMatch[1]);
+              }
+            }
+            
+            if (textCols.size > 0) {
+              textColumns.set(tableName, textCols);
+            }
+          }
+        }
+        
         if (isMySQL) {
           // MySQL conversions
           // Remove default values from TEXT columns (MySQL doesn't allow this)
@@ -119,18 +146,19 @@ const migrationsDir = path.join(__dirname, '../migrations');
         sql = sql.replace(/CREATE TABLE (\w+)/g, 'CREATE TABLE IF NOT EXISTS $1');
         
         if (isMySQL) {
-          // MySQL: Add key length to TEXT columns in indexes (required by MySQL)
-          // Pattern: CREATE INDEX name ON table(column) -> CREATE INDEX name ON table(column(255))
-          // This handles single column indexes
-          sql = sql.replace(/CREATE INDEX (\w+) ON (\w+)\((\w+)\)/g, 'CREATE INDEX $1 ON $2($3(255))');
-          // This handles multi-column indexes - add length to all columns
+          // MySQL: Add key length ONLY to TEXT columns in indexes (required by MySQL)
           sql = sql.replace(/CREATE INDEX (\w+) ON (\w+)\(([^)]+)\)/g, (match, indexName, tableName, columns) => {
-            // Split columns and add (255) to each
+            const textCols = textColumns.get(tableName) || new Set<string>();
             const cols = columns.split(',').map((col: string) => {
               const trimmed = col.trim();
-              // If it already has a length, don't add another
-              if (trimmed.includes('(')) return trimmed;
-              return `${trimmed}(255)`;
+              // Remove any existing length specification first
+              const colName = trimmed.replace(/\([^)]*\)$/, '');
+              
+              // Only add key length if this is a TEXT column
+              if (textCols.has(colName)) {
+                return `${colName}(255)`;
+              }
+              return colName;
             });
             return `CREATE INDEX ${indexName} ON ${tableName}(${cols.join(', ')})`;
           });

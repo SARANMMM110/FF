@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
 );
 
 CREATE INDEX idx_focus_sessions_user_id ON focus_sessions(user_id(255));
-CREATE INDEX idx_focus_sessions_task_id ON focus_sessions(task_id(255));
-CREATE INDEX idx_focus_sessions_start_time ON focus_sessions(start_time(255));
+CREATE INDEX idx_focus_sessions_task_id ON focus_sessions(task_id);
+CREATE INDEX idx_focus_sessions_start_time ON focus_sessions(start_time);
 
 
 -- Migration 3
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS subtasks (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_subtasks_task_id ON subtasks(task_id(255));
+CREATE INDEX idx_subtasks_task_id ON subtasks(task_id);
 
 
 -- Migration 5
@@ -257,7 +257,7 @@ CREATE TABLE IF NOT EXISTS payment_subscriptions (
 
 CREATE INDEX idx_payment_customers_user_id ON payment_customers(user_id(255));
 CREATE INDEX idx_payment_customers_stripe_id ON payment_customers(stripe_customer_id(255));
-CREATE INDEX idx_payment_subscriptions_customer_id ON payment_subscriptions(customer_id(255));
+CREATE INDEX idx_payment_subscriptions_customer_id ON payment_subscriptions(customer_id);
 CREATE INDEX idx_payment_subscriptions_stripe_id ON payment_subscriptions(stripe_subscription_id(255));
 
 
@@ -316,7 +316,7 @@ CREATE TABLE IF NOT EXISTS user_goals (
 );
 
 CREATE INDEX idx_user_goals_user_id ON user_goals(user_id(255));
-CREATE INDEX idx_user_goals_end_date ON user_goals(end_date(255));
+CREATE INDEX idx_user_goals_end_date ON user_goals(end_date);
 
 
 -- Migration 17
@@ -344,8 +344,8 @@ CREATE TABLE IF NOT EXISTS focus_distractions (
 );
 
 CREATE INDEX idx_focus_distractions_user_id ON focus_distractions(user_id(255));
-CREATE INDEX idx_focus_distractions_session_id ON focus_distractions(session_id(255));
-CREATE INDEX idx_focus_distractions_timestamp ON focus_distractions(timestamp(255));
+CREATE INDEX idx_focus_distractions_session_id ON focus_distractions(session_id);
+CREATE INDEX idx_focus_distractions_timestamp ON focus_distractions(timestamp);
 
 
 -- Migration 21
@@ -384,7 +384,7 @@ CREATE TABLE IF NOT EXISTS registration_codes (
 );
 
 CREATE INDEX idx_registration_codes_code ON registration_codes(code(255));
-CREATE INDEX idx_registration_codes_active ON registration_codes(is_active(255));
+CREATE INDEX idx_registration_codes_active ON registration_codes(is_active);
 
 
 -- Migration 23
