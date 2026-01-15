@@ -479,10 +479,13 @@ export default function Analytics() {
                         color: '#F9FAFB',
                         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
                       }}
-                      formatter={(value: number, name: string) => [
-                        name === 'minutes' ? `${value} minutes` : `${value} sessions`,
-                        name === 'minutes' ? 'Focus Time' : 'Sessions'
-                      ]}
+                      formatter={(value: number | undefined, name: string) => {
+                        if (value === undefined) return ['0', name];
+                        return [
+                          name === 'minutes' ? `${value} minutes` : `${value} sessions`,
+                          name === 'minutes' ? 'Focus Time' : 'Sessions'
+                        ];
+                      }}
                     />
                     <Area dataKey="minutes" stroke="#E50914" strokeWidth={3} fill="url(#areaGradient)" />
                   </AreaChart>
@@ -546,10 +549,13 @@ export default function Analytics() {
                           color: '#F9FAFB',
                           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
                         }}
-                        formatter={(value: number, name: string, props: any) => [
-                          `${value} min (${props.payload.sessions} sessions)`,
-                          name
-                        ]}
+                        formatter={(value: number | undefined, name: string, props: any) => {
+                          if (value === undefined) return ['0', name];
+                          return [
+                            `${value} min (${props.payload.sessions} sessions)`,
+                            name
+                          ];
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -594,7 +600,10 @@ export default function Analytics() {
                       color: '#F9FAFB',
                       boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
                     }}
-                    formatter={(value: number) => [`${value} minutes`, 'Focus Time']}
+                    formatter={(value: number | undefined) => {
+                      if (value === undefined) return ['0 minutes', 'Focus Time'];
+                      return [`${value} minutes`, 'Focus Time'];
+                    }}
                   />
                   <Bar dataKey="minutes" fill="url(#projectGradient)" radius={[0, 8, 8, 0]} />
                   <defs>
