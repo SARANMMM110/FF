@@ -168,7 +168,40 @@ const migrationsDir = path.join(__dirname, '../migrations');
         }
       }
       
-      await db.exec(sql);
+      // For MySQL, handle CREATE INDEX statements separately to avoid duplicate key errors
+      if (isMySQL) {
+        // Split SQL into individual statements
+        const statements = sql.split(';').filter(s => s.trim());
+        
+        for (const statement of statements) {
+          if (!statement.trim()) continue;
+          
+          // Check if this is a CREATE INDEX statement
+          const indexMatch = statement.match(/CREATE\s+INDEX\s+(\w+)\s+ON/i);
+          
+          if (indexMatch) {
+            const indexName = indexMatch[1];
+            
+            // Try to execute, but catch duplicate key errors
+            try {
+              await db.exec(statement.trim());
+            } catch (execError: any) {
+              // For CREATE INDEX, ignore duplicate key errors
+              if (execError.code === 'ER_DUP_KEYNAME' || execError.errno === 1061) {
+                console.log(`  ⏭️  Index ${indexName} already exists, skipping...`);
+                continue;
+              }
+              throw execError;
+            }
+          } else {
+            // For non-index statements, execute normally
+            await db.exec(statement.trim());
+          }
+        }
+      } else {
+        // For PostgreSQL and SQLite, execute normally
+        await db.exec(sql);
+      }
       
       // Record migration
       await db.prepare('INSERT INTO _migrations (migration_number) VALUES (?)')
