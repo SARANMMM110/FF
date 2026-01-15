@@ -62,8 +62,8 @@ for (const migration of migrationFiles) {
   // Add IF NOT EXISTS to CREATE TABLE statements
   sql = sql.replace(/CREATE TABLE (\w+)/g, 'CREATE TABLE IF NOT EXISTS $1');
   
-  // Add IF NOT EXISTS to CREATE INDEX statements
-  sql = sql.replace(/CREATE INDEX (\w+)/g, 'CREATE INDEX IF NOT EXISTS $1');
+  // Note: MySQL does NOT support IF NOT EXISTS for CREATE INDEX
+  // So we leave CREATE INDEX as-is (without IF NOT EXISTS) for MySQL
   
   // Add migration comment
   combinedSQL += `\n-- Migration ${migration.number}\n`;

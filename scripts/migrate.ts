@@ -118,8 +118,10 @@ const migrationsDir = path.join(__dirname, '../migrations');
         // Add IF NOT EXISTS to CREATE TABLE statements
         sql = sql.replace(/CREATE TABLE (\w+)/g, 'CREATE TABLE IF NOT EXISTS $1');
         
-        // Add IF NOT EXISTS to CREATE INDEX statements
-        sql = sql.replace(/CREATE INDEX (\w+)/g, 'CREATE INDEX IF NOT EXISTS $1');
+        // Add IF NOT EXISTS to CREATE INDEX statements (PostgreSQL only, MySQL doesn't support it)
+        if (!isMySQL) {
+          sql = sql.replace(/CREATE INDEX (\w+)/g, 'CREATE INDEX IF NOT EXISTS $1');
+        }
       }
       
       await db.exec(sql);

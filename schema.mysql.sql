@@ -28,9 +28,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks(user_id, status);
+CREATE INDEX idx_tasks_user_id ON tasks(user_id);
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_tasks_user_status ON tasks(user_id, status);
 
 
 -- Migration 2
@@ -48,9 +48,9 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_focus_sessions_user_id ON focus_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_focus_sessions_task_id ON focus_sessions(task_id);
-CREATE INDEX IF NOT EXISTS idx_focus_sessions_start_time ON focus_sessions(start_time);
+CREATE INDEX idx_focus_sessions_user_id ON focus_sessions(user_id);
+CREATE INDEX idx_focus_sessions_task_id ON focus_sessions(task_id);
+CREATE INDEX idx_focus_sessions_start_time ON focus_sessions(start_time);
 
 
 -- Migration 3
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);
+CREATE INDEX idx_user_settings_user_id ON user_settings(user_id);
 
 
 -- Migration 4
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS subtasks (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
+CREATE INDEX idx_subtasks_task_id ON subtasks(task_id);
 
 
 -- Migration 5
@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+CREATE INDEX idx_user_profiles_user_id ON user_profiles(user_id);
 
 
 -- Migration 13
@@ -227,9 +227,9 @@ CREATE TABLE IF NOT EXISTS email_signups (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_email_signups_email ON email_signups(email);
-CREATE INDEX IF NOT EXISTS idx_email_signups_status ON email_signups(status);
-CREATE INDEX IF NOT EXISTS idx_email_signups_source ON email_signups(signup_source);
+CREATE INDEX idx_email_signups_email ON email_signups(email);
+CREATE INDEX idx_email_signups_status ON email_signups(status);
+CREATE INDEX idx_email_signups_source ON email_signups(signup_source);
 
 CREATE TABLE IF NOT EXISTS payment_customers (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -255,10 +255,10 @@ CREATE TABLE IF NOT EXISTS payment_subscriptions (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_payment_customers_user_id ON payment_customers(user_id);
-CREATE INDEX IF NOT EXISTS idx_payment_customers_stripe_id ON payment_customers(stripe_customer_id);
-CREATE INDEX IF NOT EXISTS idx_payment_subscriptions_customer_id ON payment_subscriptions(customer_id);
-CREATE INDEX IF NOT EXISTS idx_payment_subscriptions_stripe_id ON payment_subscriptions(stripe_subscription_id);
+CREATE INDEX idx_payment_customers_user_id ON payment_customers(user_id);
+CREATE INDEX idx_payment_customers_stripe_id ON payment_customers(stripe_customer_id);
+CREATE INDEX idx_payment_subscriptions_customer_id ON payment_subscriptions(customer_id);
+CREATE INDEX idx_payment_subscriptions_stripe_id ON payment_subscriptions(stripe_subscription_id);
 
 
 -- Migration 14
@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS stripe_prices (
   UNIQUE(plan_id, billing_period)
 );
 
-CREATE INDEX IF NOT EXISTS idx_stripe_prices_plan ON stripe_prices(plan_id, billing_period);
+CREATE INDEX idx_stripe_prices_plan ON stripe_prices(plan_id, billing_period);
 
 
 -- Migration 15
@@ -293,8 +293,8 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX idx_users_user_id ON users(user_id);
+CREATE INDEX idx_users_email ON users(email);
 
 
 -- Migration 16
@@ -315,8 +315,8 @@ CREATE TABLE IF NOT EXISTS user_goals (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_goals_user_id ON user_goals(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_goals_end_date ON user_goals(end_date);
+CREATE INDEX idx_user_goals_user_id ON user_goals(user_id);
+CREATE INDEX idx_user_goals_end_date ON user_goals(end_date);
 
 
 -- Migration 17
@@ -343,9 +343,9 @@ CREATE TABLE IF NOT EXISTS focus_distractions (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_focus_distractions_user_id ON focus_distractions(user_id);
-CREATE INDEX IF NOT EXISTS idx_focus_distractions_session_id ON focus_distractions(session_id);
-CREATE INDEX IF NOT EXISTS idx_focus_distractions_timestamp ON focus_distractions(timestamp);
+CREATE INDEX idx_focus_distractions_user_id ON focus_distractions(user_id);
+CREATE INDEX idx_focus_distractions_session_id ON focus_distractions(session_id);
+CREATE INDEX idx_focus_distractions_timestamp ON focus_distractions(timestamp);
 
 
 -- Migration 21
@@ -363,8 +363,8 @@ CREATE TABLE IF NOT EXISTS user_calendar_connections (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_calendar_user_id ON user_calendar_connections(user_id);
-CREATE INDEX IF NOT EXISTS idx_calendar_provider ON user_calendar_connections(provider);
+CREATE INDEX idx_calendar_user_id ON user_calendar_connections(user_id);
+CREATE INDEX idx_calendar_provider ON user_calendar_connections(provider);
 
 
 -- Migration 22
@@ -383,8 +383,8 @@ CREATE TABLE IF NOT EXISTS registration_codes (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_registration_codes_code ON registration_codes(code);
-CREATE INDEX IF NOT EXISTS idx_registration_codes_active ON registration_codes(is_active);
+CREATE INDEX idx_registration_codes_code ON registration_codes(code);
+CREATE INDEX idx_registration_codes_active ON registration_codes(is_active);
 
 
 -- Migration 23
