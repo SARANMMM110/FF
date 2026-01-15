@@ -8,47 +8,48 @@ CREATE TABLE IF NOT EXISTS _migrations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   migration_number INTEGER UNIQUE NOT NULL,
   applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- Migration 1
 
 CREATE TABLE IF NOT EXISTS tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  user_id VARCHAR(255) NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT NOT NULL,
+  status VARCHAR(100) NOT NULL,
   priority INTEGER DEFAULT 0,
   estimated_minutes INTEGER,
   actual_minutes INTEGER DEFAULT 0,
   is_completed BOOLEAN DEFAULT FALSE,
-  completed_at TIMESTAMP,
+  completed_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_tasks_user_id ON tasks(user_id(255));
-CREATE INDEX idx_tasks_status ON tasks(status(255));
-CREATE INDEX idx_tasks_user_status ON tasks(user_id(255), status(255));
+CREATE INDEX idx_tasks_user_id ON tasks(user_id);
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_tasks_user_status ON tasks(user_id, status);
 
 
 -- Migration 2
 
 CREATE TABLE IF NOT EXISTS focus_sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  user_id VARCHAR(255) NOT NULL,
   task_id INTEGER,
   start_time TIMESTAMP NOT NULL,
-  end_time TIMESTAMP,
+  end_time TIMESTAMP NULL,
   duration_minutes INTEGER,
-  session_type TEXT NOT NULL,
+  session_type VARCHAR(50) NOT NULL,
   notes TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_focus_sessions_user_id ON focus_sessions(user_id(255));
+CREATE INDEX idx_focus_sessions_user_id ON focus_sessions(user_id);
 CREATE INDEX idx_focus_sessions_task_id ON focus_sessions(task_id);
 CREATE INDEX idx_focus_sessions_start_time ON focus_sessions(start_time);
 
@@ -57,7 +58,7 @@ CREATE INDEX idx_focus_sessions_start_time ON focus_sessions(start_time);
 
 CREATE TABLE IF NOT EXISTS user_settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT NOT NULL UNIQUE,
+  user_id VARCHAR(255) NOT NULL UNIQUE,
   focus_duration_minutes INTEGER DEFAULT 25,
   short_break_minutes INTEGER DEFAULT 5,
   long_break_minutes INTEGER DEFAULT 15,
@@ -65,18 +66,19 @@ CREATE TABLE IF NOT EXISTS user_settings (
   auto_start_breaks BOOLEAN DEFAULT FALSE,
   auto_start_focus BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_user_settings_user_id ON user_settings(user_id(255));
+CREATE INDEX idx_user_settings_user_id ON user_settings(user_id);
 
 
 -- Migration 4
 
 -- Add new columns to tasks table
-ALTER TABLE tasks ADD COLUMN project TEXT;
-ALTER TABLE tasks ADD COLUMN due_date TIMESTAMP;
-ALTER TABLE tasks ADD COLUMN tags TEXT;
+ALTER TABLE tasks 
+ADD COLUMN IF NOT EXISTS project TEXT,
+ADD COLUMN IF NOT EXISTS due_date TIMESTAMP NULL,
+ADD COLUMN IF NOT EXISTS tags TEXT;
 
 -- Create subtasks table
 CREATE TABLE IF NOT EXISTS subtasks (
@@ -87,28 +89,32 @@ CREATE TABLE IF NOT EXISTS subtasks (
   is_completed BOOLEAN DEFAULT FALSE,
   position INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_subtasks_task_id ON subtasks(task_id);
 
 
 -- Migration 5
 
-ALTER TABLE focus_sessions ADD COLUMN timer_mode TEXT;
+ALTER TABLE focus_sessions 
+ADD COLUMN IF NOT EXISTS timer_mode VARCHAR(50);
 
 
 -- Migration 6
 
-ALTER TABLE user_settings ADD COLUMN minimal_mode_enabled BOOLEAN DEFAULT FALSE;
-ALTER TABLE user_settings ADD COLUMN blocked_websites TEXT;
-ALTER TABLE user_settings ADD COLUMN show_motivational_prompts BOOLEAN DEFAULT TRUE;
+ALTER TABLE user_settings 
+ADD COLUMN IF NOT EXISTS minimal_mode_enabled BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS blocked_websites TEXT,
+ADD COLUMN IF NOT EXISTS show_motivational_prompts BOOLEAN DEFAULT TRUE;
 
 
 -- Migration 7
 
-ALTER TABLE user_settings ADD COLUMN notion_sync_enabled BOOLEAN DEFAULT FALSE;
-ALTER TABLE user_settings ADD COLUMN notion_database_id TEXT;
+ALTER TABLE user_settings 
+ADD COLUMN IF NOT EXISTS notion_sync_enabled BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS notion_database_id TEXT;
 
 
 -- Migration 8
@@ -123,22 +129,22 @@ INSERT INTO tasks (user_id, title, description, status, priority, estimated_minu
 ('demo_user_001', 'Team Onboarding Process', 'Standardize new employee onboarding workflow including documentation, access provisioning, and training schedules', 'completed', 1, 75, 'Ops', '["hr", "onboarding", "process"]', '2025-10-18 13:20:00', '2025-10-20 15:30:00');
 
 -- Update completed tasks with completion timestamps and mark as completed
-UPDATE tasks SET is_completed = 1, completed_at = '2025-10-22 16:45:00', actual_minutes = 85 WHERE title = 'Email Newsletter Design';
-UPDATE tasks SET is_completed = 1, completed_at = '2025-10-20 15:30:00', actual_minutes = 90 WHERE title = 'Team Onboarding Process';
+UPDATE tasks SET is_completed = 1, completed_at = '2025-10-22 16:45:00', actual_minutes = 85 WHERE title = 'Email Newsletter Design' AND user_id = 'demo_user_001';
+UPDATE tasks SET is_completed = 1, completed_at = '2025-10-20 15:30:00', actual_minutes = 90 WHERE title = 'Team Onboarding Process' AND user_id = 'demo_user_001';
 
 
 -- Migration 9
 
 -- Insert demo focus sessions for analytics
 INSERT INTO focus_sessions (user_id, task_id, start_time, end_time, duration_minutes, session_type, timer_mode, notes, created_at, updated_at) VALUES
-('demo_user_001', (SELECT id FROM tasks WHERE title = 'Launch Q4 Social Media Campaign' AND user_id = 'demo_user_001'), '2025-10-22 09:00:00', '2025-10-22 09:25:00', 25, 'focus', 'pomodoro', 'Researched competitor campaigns and trends', '2025-10-22 09:00:00', '2025-10-22 09:25:00'),
-('demo_user_001', (SELECT id FROM tasks WHERE title = 'Database Backup Automation' AND user_id = 'demo_user_001'), '2025-10-22 10:30:00', '2025-10-22 11:00:00', 30, 'focus', 'custom', 'Set up initial backup scripts and tested functionality', '2025-10-22 10:30:00', '2025-10-22 11:00:00'),
-('demo_user_001', (SELECT id FROM tasks WHERE title = 'Email Newsletter Design' AND user_id = 'demo_user_001'), '2025-10-21 14:00:00', '2025-10-21 14:50:00', 50, 'focus', 'classic', 'Completed responsive template design and mobile optimization', '2025-10-21 14:00:00', '2025-10-21 14:50:00');
+('demo_user_001', (SELECT id FROM tasks WHERE title = 'Launch Q4 Social Media Campaign' AND user_id = 'demo_user_001' LIMIT 1), '2025-10-22 09:00:00', '2025-10-22 09:25:00', 25, 'focus', 'pomodoro', 'Researched competitor campaigns and trends', '2025-10-22 09:00:00', '2025-10-22 09:25:00'),
+('demo_user_001', (SELECT id FROM tasks WHERE title = 'Database Backup Automation' AND user_id = 'demo_user_001' LIMIT 1), '2025-10-22 10:30:00', '2025-10-22 11:00:00', 30, 'focus', 'custom', 'Set up initial backup scripts and tested functionality', '2025-10-22 10:30:00', '2025-10-22 11:00:00'),
+('demo_user_001', (SELECT id FROM tasks WHERE title = 'Email Newsletter Design' AND user_id = 'demo_user_001' LIMIT 1), '2025-10-21 14:00:00', '2025-10-21 14:50:00', 50, 'focus', 'classic', 'Completed responsive template design and mobile optimization', '2025-10-21 14:00:00', '2025-10-21 14:50:00');
 
 -- Insert additional sessions for the past week to show analytics trends
 INSERT INTO focus_sessions (user_id, task_id, start_time, end_time, duration_minutes, session_type, timer_mode, created_at, updated_at) VALUES
-('demo_user_001', (SELECT id FROM tasks WHERE title = 'Launch Q4 Social Media Campaign' AND user_id = 'demo_user_001'), '2025-10-21 09:15:00', '2025-10-21 09:40:00', 25, 'focus', 'pomodoro', '2025-10-21 09:15:00', '2025-10-21 09:40:00'),
-('demo_user_001', (SELECT id FROM tasks WHERE title = 'Team Onboarding Process' AND user_id = 'demo_user_001'), '2025-10-20 13:00:00', '2025-10-20 13:45:00', 45, 'focus', 'custom', '2025-10-20 13:00:00', '2025-10-20 13:45:00'),
+('demo_user_001', (SELECT id FROM tasks WHERE title = 'Launch Q4 Social Media Campaign' AND user_id = 'demo_user_001' LIMIT 1), '2025-10-21 09:15:00', '2025-10-21 09:40:00', 25, 'focus', 'pomodoro', '2025-10-21 09:15:00', '2025-10-21 09:40:00'),
+('demo_user_001', (SELECT id FROM tasks WHERE title = 'Team Onboarding Process' AND user_id = 'demo_user_001' LIMIT 1), '2025-10-20 13:00:00', '2025-10-20 13:45:00', 45, 'focus', 'custom', '2025-10-20 13:00:00', '2025-10-20 13:45:00'),
 ('demo_user_001', NULL, '2025-10-19 16:00:00', '2025-10-19 16:25:00', 25, 'focus', 'pomodoro', '2025-10-19 16:00:00', '2025-10-19 16:25:00');
 
 
@@ -146,26 +152,31 @@ INSERT INTO focus_sessions (user_id, task_id, start_time, end_time, duration_min
 
 CREATE TABLE IF NOT EXISTS admin_users (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
+  username VARCHAR(100) NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  email TEXT,
+  email VARCHAR(255),
   is_super_admin BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS admin_sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   admin_id INTEGER NOT NULL,
-  session_token TEXT NOT NULL UNIQUE,
+  session_token VARCHAR(255) NOT NULL UNIQUE,
   expires_at TIMESTAMP NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create the master admin user (password will be hashed)
 INSERT INTO admin_users (username, password_hash, email, is_super_admin) 
-VALUES ('master_admin', '$2a$10$YourHashedPasswordHere', 'admin@focusflow.com', 1);
+VALUES ('master_admin', '$2a$10$YourHashedPasswordHere', 'admin@focusflow.com', 1)
+ON DUPLICATE KEY UPDATE 
+  password_hash = VALUES(password_hash),
+  email = VALUES(email),
+  is_super_admin = VALUES(is_super_admin);
 
 
 -- Migration 11
@@ -176,7 +187,7 @@ SET password_hash = '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/ig
 WHERE username = 'master_admin';
 
 -- If the user doesn't exist, create it
-INSERT OR IGNORE INTO admin_users (username, password_hash, email, is_super_admin) 
+INSERT IGNORE INTO admin_users (username, password_hash, email, is_super_admin) 
 VALUES ('master_admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@focusflow.com', 1);
 
 
@@ -184,166 +195,172 @@ VALUES ('master_admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheW
 
 CREATE TABLE IF NOT EXISTS user_profiles (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT NOT NULL UNIQUE,
-  display_name TEXT,
+  user_id VARCHAR(255) NOT NULL UNIQUE,
+  display_name VARCHAR(255),
   bio TEXT,
-  phone TEXT,
+  phone VARCHAR(50),
   address_line1 TEXT,
   address_line2 TEXT,
-  city TEXT,
-  state TEXT,
-  country TEXT,
-  postal_code TEXT,
+  city VARCHAR(100),
+  state VARCHAR(100),
+  country VARCHAR(100),
+  postal_code VARCHAR(50),
   profile_photo_url TEXT,
   website_url TEXT,
-  timezone TEXT,
+  timezone VARCHAR(100),
   date_of_birth DATE,
-  occupation TEXT,
-  company TEXT,
+  occupation VARCHAR(255),
+  company VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_user_profiles_user_id ON user_profiles(user_id(255));
+CREATE INDEX idx_user_profiles_user_id ON user_profiles(user_id);
 
 
 -- Migration 13
 
 CREATE TABLE IF NOT EXISTS email_signups (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
-  name TEXT,
-  signup_source TEXT NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  name VARCHAR(255),
+  signup_source VARCHAR(100) NOT NULL,
   marketing_consent BOOLEAN DEFAULT TRUE,
-  status TEXT NOT NULL,
+  status VARCHAR(50) NOT NULL,
   tags TEXT,
-  ip_address TEXT,
+  ip_address VARCHAR(100),
   user_agent TEXT,
   referrer TEXT,
-  utm_source TEXT,
-  utm_medium TEXT,
-  utm_campaign TEXT,
+  utm_source VARCHAR(100),
+  utm_medium VARCHAR(100),
+  utm_campaign VARCHAR(100),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_email_signups_email ON email_signups(email(255));
-CREATE INDEX idx_email_signups_status ON email_signups(status(255));
-CREATE INDEX idx_email_signups_source ON email_signups(signup_source(255));
+CREATE INDEX idx_email_signups_email ON email_signups(email);
+CREATE INDEX idx_email_signups_status ON email_signups(status);
+CREATE INDEX idx_email_signups_source ON email_signups(signup_source);
 
 CREATE TABLE IF NOT EXISTS payment_customers (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT,
-  email TEXT NOT NULL,
-  stripe_customer_id TEXT UNIQUE,
-  name TEXT,
-  phone TEXT,
+  user_id VARCHAR(255),
+  email VARCHAR(255) NOT NULL,
+  stripe_customer_id VARCHAR(255) UNIQUE,
+  name VARCHAR(255),
+  phone VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS payment_subscriptions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   customer_id INTEGER NOT NULL,
-  stripe_subscription_id TEXT UNIQUE,
-  plan_id TEXT NOT NULL,
-  status TEXT NOT NULL,
-  current_period_start TIMESTAMP,
-  current_period_end TIMESTAMP,
-  trial_end TIMESTAMP,
+  stripe_subscription_id VARCHAR(255) UNIQUE,
+  plan_id VARCHAR(100) NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  current_period_start TIMESTAMP NULL,
+  current_period_end TIMESTAMP NULL,
+  trial_end TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (customer_id) REFERENCES payment_customers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_payment_customers_user_id ON payment_customers(user_id(255));
-CREATE INDEX idx_payment_customers_stripe_id ON payment_customers(stripe_customer_id(255));
+CREATE INDEX idx_payment_customers_user_id ON payment_customers(user_id);
+CREATE INDEX idx_payment_customers_stripe_id ON payment_customers(stripe_customer_id);
 CREATE INDEX idx_payment_subscriptions_customer_id ON payment_subscriptions(customer_id);
-CREATE INDEX idx_payment_subscriptions_stripe_id ON payment_subscriptions(stripe_subscription_id(255));
+CREATE INDEX idx_payment_subscriptions_stripe_id ON payment_subscriptions(stripe_subscription_id);
 
 
 -- Migration 14
 
 CREATE TABLE IF NOT EXISTS stripe_prices (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  plan_id TEXT NOT NULL,
-  billing_period TEXT NOT NULL,
-  stripe_price_id TEXT NOT NULL,
-  stripe_product_id TEXT NOT NULL,
-  amount REAL NOT NULL,
+  plan_id VARCHAR(100) NOT NULL,
+  billing_period VARCHAR(50) NOT NULL,
+  stripe_price_id VARCHAR(255) NOT NULL,
+  stripe_product_id VARCHAR(255) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE(plan_id, billing_period)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_stripe_prices_plan ON stripe_prices(plan_id(255), billing_period(255));
+CREATE INDEX idx_stripe_prices_plan ON stripe_prices(plan_id, billing_period);
 
 
 -- Migration 15
 
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT NOT NULL UNIQUE,
-  email TEXT NOT NULL,
-  name TEXT,
-  google_user_id TEXT,
+  user_id VARCHAR(255) NOT NULL UNIQUE,
+  email VARCHAR(255) NOT NULL,
+  name VARCHAR(255),
+  google_user_id VARCHAR(255),
   profile_picture_url TEXT,
-  signup_source TEXT,
-  last_login_at TIMESTAMP,
+  signup_source VARCHAR(100),
+  last_login_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_users_user_id ON users(user_id(255));
-CREATE INDEX idx_users_email ON users(email(255));
+CREATE INDEX idx_users_user_id ON users(user_id);
+CREATE INDEX idx_users_email ON users(email);
 
 
 -- Migration 16
 
 CREATE TABLE IF NOT EXISTS user_goals (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  user_id VARCHAR(255) NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  target_type TEXT NOT NULL,
+  target_type VARCHAR(50) NOT NULL,
   target_value INTEGER NOT NULL,
   current_value INTEGER DEFAULT 0,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   is_completed BOOLEAN DEFAULT FALSE,
-  completed_at TIMESTAMP,
+  completed_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_user_goals_user_id ON user_goals(user_id(255));
+CREATE INDEX idx_user_goals_user_id ON user_goals(user_id);
 CREATE INDEX idx_user_goals_end_date ON user_goals(end_date);
 
 
 -- Migration 17
 
-ALTER TABLE user_settings ADD COLUMN custom_theme_enabled BOOLEAN DEFAULT FALSE;
-ALTER TABLE user_settings ADD COLUMN custom_theme_primary TEXT;
-ALTER TABLE user_settings ADD COLUMN custom_theme_secondary TEXT;
-ALTER TABLE user_settings ADD COLUMN custom_theme_accent TEXT;
+ALTER TABLE user_settings 
+ADD COLUMN IF NOT EXISTS custom_theme_enabled BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS custom_theme_primary VARCHAR(50),
+ADD COLUMN IF NOT EXISTS custom_theme_secondary VARCHAR(50),
+ADD COLUMN IF NOT EXISTS custom_theme_accent VARCHAR(50);
 
 
 -- Migration 19
-ALTER TABLE users ADD COLUMN subscription_plan TEXT;
+
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS subscription_plan VARCHAR(100);
+
 
 -- Migration 20
 
 CREATE TABLE IF NOT EXISTS focus_distractions (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  user_id VARCHAR(255) NOT NULL,
   session_id INTEGER,
-  distraction_type TEXT NOT NULL,
+  distraction_type VARCHAR(100) NOT NULL,
   duration_seconds INTEGER,
   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES focus_sessions(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_focus_distractions_user_id ON focus_distractions(user_id(255));
+CREATE INDEX idx_focus_distractions_user_id ON focus_distractions(user_id);
 CREATE INDEX idx_focus_distractions_session_id ON focus_distractions(session_id);
 CREATE INDEX idx_focus_distractions_timestamp ON focus_distractions(timestamp);
 
@@ -352,73 +369,74 @@ CREATE INDEX idx_focus_distractions_timestamp ON focus_distractions(timestamp);
 
 CREATE TABLE IF NOT EXISTS user_calendar_connections (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id TEXT NOT NULL UNIQUE,
-  provider TEXT NOT NULL,
+  user_id VARCHAR(255) NOT NULL UNIQUE,
+  provider VARCHAR(50) NOT NULL,
   access_token TEXT NOT NULL,
   refresh_token TEXT,
-  token_expires_at TIMESTAMP,
+  token_expires_at TIMESTAMP NULL,
   calendar_id TEXT,
-  is_active INTEGER DEFAULT 1,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_calendar_user_id ON user_calendar_connections(user_id(255));
-CREATE INDEX idx_calendar_provider ON user_calendar_connections(provider(255));
+CREATE INDEX idx_calendar_user_id ON user_calendar_connections(user_id);
+CREATE INDEX idx_calendar_provider ON user_calendar_connections(provider);
 
 
 -- Migration 22
 
 CREATE TABLE IF NOT EXISTS registration_codes (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  code TEXT NOT NULL UNIQUE,
-  plan_id TEXT NOT NULL,
+  code VARCHAR(100) NOT NULL UNIQUE,
+  plan_id VARCHAR(100) NOT NULL,
   max_uses INTEGER,
   current_uses INTEGER DEFAULT 0,
-  expires_at TIMESTAMP,
-  is_active INTEGER DEFAULT 1,
-  created_by TEXT,
+  expires_at TIMESTAMP NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by VARCHAR(255),
   notes TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_registration_codes_code ON registration_codes(code(255));
+CREATE INDEX idx_registration_codes_code ON registration_codes(code);
 CREATE INDEX idx_registration_codes_active ON registration_codes(is_active);
 
 
 -- Migration 23
 
-ALTER TABLE tasks ADD COLUMN repeat TEXT;
-ALTER TABLE tasks ADD COLUMN repeat_detail TEXT;
-ALTER TABLE tasks ADD COLUMN parent_recurring_task_id INTEGER;
-ALTER TABLE tasks ADD COLUMN next_occurrence_date DATE;
+ALTER TABLE tasks 
+ADD COLUMN IF NOT EXISTS repeat VARCHAR(50),
+ADD COLUMN IF NOT EXISTS repeat_detail TEXT,
+ADD COLUMN IF NOT EXISTS parent_recurring_task_id INTEGER,
+ADD COLUMN IF NOT EXISTS next_occurrence_date DATE NULL;
 
 
 -- Migration 24
 
 -- Add metadata column to focus_distractions for storing additional context
-ALTER TABLE focus_distractions ADD COLUMN metadata TEXT;
+ALTER TABLE focus_distractions 
+ADD COLUMN IF NOT EXISTS metadata TEXT;
 
 
 -- Migration 25
 
 CREATE TABLE IF NOT EXISTS white_label_settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  app_name TEXT,
-  app_tagline TEXT,
+  app_name VARCHAR(255),
+  app_tagline VARCHAR(255),
   logo_url TEXT,
-  primary_color TEXT,
-  secondary_color TEXT,
-  accent_color TEXT,
-  custom_domain TEXT,
+  primary_color VARCHAR(50),
+  secondary_color VARCHAR(50),
+  accent_color VARCHAR(50),
+  custom_domain VARCHAR(255),
   hide_powered_by BOOLEAN DEFAULT FALSE,
-  support_email TEXT,
+  support_email VARCHAR(255),
   terms_url TEXT,
   privacy_url TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO white_label_settings (id, app_name, app_tagline) VALUES (1, 'FocusFlow', 'Master your time, amplify your focus');
-
+INSERT IGNORE INTO white_label_settings (id, app_name, app_tagline) VALUES (1, 'FocusFlow', 'Master your time, amplify your focus');
