@@ -3,10 +3,10 @@ import { getCookie, setCookie } from "hono/cookie";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { createLocalAuthMiddleware, generateSessionToken, getCurrentUserFromToken, SESSION_TOKEN_COOKIE_NAME, type LocalUser } from "../server/auth/localAuth";
-import { getGoogleOAuthRedirectUrl, exchangeGoogleCodeForTokens, getGoogleUserInfo } from "../server/auth/googleOAuth";
-import { processRecurringTasks, calculateNextOccurrence } from "./recurring-tasks";
-import { syncTask as syncTaskToNotion } from "./lib/integrations/notion";
+import { createLocalAuthMiddleware, generateSessionToken, getCurrentUserFromToken, SESSION_TOKEN_COOKIE_NAME, type LocalUser } from "../server/auth/localAuth.js";
+import { getGoogleOAuthRedirectUrl, exchangeGoogleCodeForTokens, getGoogleUserInfo } from "../server/auth/googleOAuth.js";
+import { processRecurringTasks, calculateNextOccurrence } from "./recurring-tasks.js";
+import { syncTask as syncTaskToNotion } from "./lib/integrations/notion.js";
 
 interface Env {
   DB: D1Database;

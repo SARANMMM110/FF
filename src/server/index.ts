@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server';
-import app from '../worker/index';
+import app from '../worker/index.js';
 import { NodeD1Database } from './adapters/database';
 import { PostgresD1Database } from './adapters/postgres';
 import { MysqlD1Database } from './adapters/mysql';
