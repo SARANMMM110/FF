@@ -535,15 +535,15 @@ app.post("/api/sessions", async (c) => {
     let settingsCheck: any[] = [];
     
     try {
-      // Check if this user exists in our database
+    // Check if this user exists in our database
       const userResult = await c.env.DB.prepare(
-        "SELECT user_id FROM users WHERE user_id = ? LIMIT 1"
-      ).bind(user.id).all();
+      "SELECT user_id FROM users WHERE user_id = ? LIMIT 1"
+    ).bind(user.id).all();
       userCheck = userResult.results || [];
 
       const settingsResult = await c.env.DB.prepare(
-        "SELECT user_id FROM user_settings WHERE user_id = ? LIMIT 1"
-      ).bind(user.id).all();
+      "SELECT user_id FROM user_settings WHERE user_id = ? LIMIT 1"
+    ).bind(user.id).all();
       settingsCheck = settingsResult.results || [];
     } catch (dbError: any) {
       console.error("❌ [Database] Error checking user:", dbError);
@@ -557,8 +557,8 @@ app.post("/api/sessions", async (c) => {
     let signupCheck: any[] = [];
     try {
       const signupResult = await c.env.DB.prepare(
-        "SELECT email FROM email_signups WHERE email = ? LIMIT 1"
-      ).bind(user.email).all();
+      "SELECT email FROM email_signups WHERE email = ? LIMIT 1"
+    ).bind(user.email).all();
       signupCheck = signupResult.results || [];
     } catch (dbError: any) {
       console.error("❌ [Database] Error checking email signups:", dbError);
@@ -584,18 +584,18 @@ app.post("/api/sessions", async (c) => {
       console.log(`💾 [Database] Creating NEW user with plan: ${subscriptionPlan.toUpperCase()}`);
       
       try {
-        await c.env.DB.prepare(
-          `INSERT INTO users (user_id, email, name, google_user_id, profile_picture_url, signup_source, subscription_plan, last_login_at)
-           VALUES (?, ?, ?, ?, ?, 'google-oauth', ?, ?)`
-        ).bind(
-          user.id,
-          user.email,
-          user.google_user_data?.name || null,
-          user.google_user_data?.sub || null,
-          user.google_user_data?.picture || null,
-          subscriptionPlan,
-          new Date().toISOString()
-        ).run();
+      await c.env.DB.prepare(
+        `INSERT INTO users (user_id, email, name, google_user_id, profile_picture_url, signup_source, subscription_plan, last_login_at)
+         VALUES (?, ?, ?, ?, ?, 'google-oauth', ?, ?)`
+      ).bind(
+        user.id,
+        user.email,
+        user.google_user_data?.name || null,
+        user.google_user_data?.sub || null,
+        user.google_user_data?.picture || null,
+        subscriptionPlan,
+        new Date().toISOString()
+      ).run();
       } catch (dbError: any) {
         console.error("❌ [Database] Error creating user:", dbError);
         return c.json({ 

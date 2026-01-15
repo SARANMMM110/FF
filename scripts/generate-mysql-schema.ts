@@ -28,8 +28,9 @@ const migrationFiles = readdirSync(migrationsDir)
 
 console.log(`📋 Found ${migrationFiles.length} migration files`);
 
-// First pass: Extract all TEXT columns from all tables across all migrations
+// First pass: Extract all TEXT columns and UNIQUE TEXT columns from all tables across all migrations
 const textColumns = new Map<string, Set<string>>(); // table -> set of TEXT column names
+const uniqueTextColumns = new Map<string, Set<string>>(); // table -> set of UNIQUE TEXT column names
 
 console.log('🔍 Analyzing table schemas to identify TEXT columns...');
 for (const migration of migrationFiles) {
@@ -53,6 +54,15 @@ for (const migration of migrationFiles) {
       const colMatch = line.match(/^(\w+)\s+TEXT/i);
       if (colMatch) {
         textCols.add(colMatch[1]);
+      }
+      
+      // Also track UNIQUE TEXT columns
+      const uniqueMatch = line.match(/^(\w+)\s+TEXT.*UNIQUE/i);
+      if (uniqueMatch) {
+        if (!uniqueTextColumns.has(tableName)) {
+          uniqueTextColumns.set(tableName, new Set<string>());
+        }
+        uniqueTextColumns.get(tableName)!.add(uniqueMatch[1]);
       }
     }
   }
@@ -79,6 +89,9 @@ for (const migration of migrationFiles) {
   let sql = readFileSync(migration.path, 'utf-8');
   
   // Convert SQLite syntax to MySQL
+  // Remove UNIQUE from TEXT columns (MySQL requires key length, handle via UNIQUE INDEX instead)
+  sql = sql.replace(/TEXT\s+NOT\s+NULL\s+UNIQUE/gi, 'TEXT NOT NULL');
+  sql = sql.replace(/TEXT\s+UNIQUE/gi, 'TEXT');
   // Remove default values from TEXT columns (MySQL doesn't allow this)
   sql = sql.replace(/TEXT\s+NOT\s+NULL\s+DEFAULT\s+'[^']*'/gi, 'TEXT NOT NULL');
   sql = sql.replace(/TEXT\s+DEFAULT\s+'[^']*'/gi, 'TEXT');
@@ -95,6 +108,7 @@ for (const migration of migrationFiles) {
   // MySQL: Add key length ONLY to TEXT columns in indexes (required by MySQL)
   sql = sql.replace(/CREATE INDEX (\w+) ON (\w+)\(([^)]+)\)/g, (match, indexName, tableName, columns) => {
     const textCols = textColumns.get(tableName) || new Set<string>();
+    const uniqueTextCols = uniqueTextColumns.get(tableName) || new Set<string>();
     const cols = columns.split(',').map((col: string) => {
       const trimmed = col.trim();
       // Remove any existing length specification first
@@ -106,8 +120,33 @@ for (const migration of migrationFiles) {
       }
       return colName;
     });
+    
+    // Check if this index is on a single UNIQUE TEXT column - convert to UNIQUE INDEX
+    const singleCol = cols.length === 1;
+    const colName = singleCol ? cols[0].replace(/\([^)]*\)$/, '') : null;
+    const isUniqueTextCol = colName && uniqueTextCols.has(colName);
+    
+    if (isUniqueTextCol && singleCol) {
+      return `CREATE UNIQUE INDEX ${indexName} ON ${tableName}(${cols.join(', ')})`;
+    }
+    
     return `CREATE INDEX ${indexName} ON ${tableName}(${cols.join(', ')})`;
   });
+  
+  // For UNIQUE TEXT columns that don't have an index, add UNIQUE INDEX
+  for (const [tableName, cols] of uniqueTextColumns.entries()) {
+    for (const colName of cols) {
+      // Check if there's already an index for this column
+      const hasIndex = sql.match(new RegExp(`CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+\\w+\\s+ON\\s+${tableName}\\s*\\([^)]*${colName}`, 'i'));
+      if (!hasIndex) {
+        // Add UNIQUE INDEX after the CREATE TABLE statement
+        sql = sql.replace(
+          new RegExp(`(CREATE TABLE IF NOT EXISTS ${tableName}[^;]+;)`, 'i'),
+          `$1\nCREATE UNIQUE INDEX idx_${tableName}_${colName}_unique ON ${tableName}(${colName}(255));`
+        );
+      }
+    }
+  }
   
   // Add migration comment
   combinedSQL += `\n-- Migration ${migration.number}\n`;
