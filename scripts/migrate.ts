@@ -189,6 +189,26 @@ const migrationsDir = path.join(__dirname, '../migrations');
           sql = sql.replace(/INTEGER PRIMARY KEY(?!\s+AUTOINCREMENT)/g, 'INT PRIMARY KEY');
           sql = sql.replace(/TEXT/g, 'TEXT');
           
+          // Escape reserved keywords in ALTER TABLE statements (e.g., 'repeat' is a MySQL reserved keyword)
+          // Pattern: ALTER TABLE table ADD COLUMN column_name ... -> ALTER TABLE table ADD COLUMN `column_name` ...
+          sql = sql.replace(/ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)(\s+.*?)(?=;|$)/gi, (match, tableName, columnName, rest) => {
+            // List of common MySQL reserved keywords that might be used as column names
+            const reservedKeywords = new Set([
+              'repeat', 'order', 'group', 'select', 'insert', 'update', 'delete', 'create', 'drop',
+              'alter', 'table', 'index', 'key', 'primary', 'foreign', 'references', 'constraint',
+              'default', 'null', 'not', 'unique', 'check', 'auto_increment', 'timestamp', 'datetime',
+              'date', 'time', 'year', 'text', 'varchar', 'char', 'int', 'integer', 'bigint', 'smallint',
+              'tinyint', 'decimal', 'float', 'double', 'real', 'boolean', 'bool', 'blob', 'binary',
+              'varbinary', 'enum', 'set', 'json'
+            ]);
+            
+            // Escape column name if it's a reserved keyword
+            if (reservedKeywords.has(columnName.toLowerCase())) {
+              return `ALTER TABLE ${tableName} ADD COLUMN \`${columnName}\`${rest}`;
+            }
+            return match;
+          });
+          
           // Add UNIQUE INDEX statements for multi-column UNIQUE constraints with TEXT columns
           for (const constraint of multiColumnUniqueConstraints) {
             const tableName = constraint.table;

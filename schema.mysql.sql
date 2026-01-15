@@ -391,7 +391,7 @@ CREATE INDEX idx_registration_codes_active ON registration_codes(is_active);
 
 -- Migration 23
 
-ALTER TABLE tasks ADD COLUMN repeat TEXT;
+ALTER TABLE tasks ADD COLUMN `repeat` TEXT;
 ALTER TABLE tasks ADD COLUMN repeat_detail TEXT;
 ALTER TABLE tasks ADD COLUMN parent_recurring_task_id INTEGER;
 ALTER TABLE tasks ADD COLUMN next_occurrence_date DATE;

@@ -105,6 +105,24 @@ for (const migration of migrationFiles) {
   sql = sql.replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT IGNORE INTO');
   sql = sql.replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'REPLACE INTO');
   
+  // Escape reserved keywords in ALTER TABLE statements (e.g., 'repeat' is a MySQL reserved keyword)
+  // Pattern: ALTER TABLE table ADD COLUMN column_name ... -> ALTER TABLE table ADD COLUMN `column_name` ...
+  sql = sql.replace(/ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)(\s+.*?)(?=;|$)/gi, (match, tableName, columnName, rest) => {
+    const reservedKeywords = new Set([
+      'repeat', 'order', 'group', 'select', 'insert', 'update', 'delete', 'create', 'drop',
+      'alter', 'table', 'index', 'key', 'primary', 'foreign', 'references', 'constraint',
+      'default', 'null', 'not', 'unique', 'check', 'auto_increment', 'timestamp', 'datetime',
+      'date', 'time', 'year', 'text', 'varchar', 'char', 'int', 'integer', 'bigint', 'smallint',
+      'tinyint', 'decimal', 'float', 'double', 'real', 'boolean', 'bool', 'blob', 'binary',
+      'varbinary', 'enum', 'set', 'json'
+    ]);
+    
+    if (reservedKeywords.has(columnName.toLowerCase())) {
+      return `ALTER TABLE ${tableName} ADD COLUMN \`${columnName}\`${rest}`;
+    }
+    return match;
+  });
+  
   // Add IF NOT EXISTS to CREATE TABLE statements
   sql = sql.replace(/CREATE TABLE (\w+)/g, 'CREATE TABLE IF NOT EXISTS $1');
   
