@@ -273,7 +273,7 @@ app.get("/api/profile/photo/:filename", async (c) => {
     headers.set("etag", object.httpEtag);
     headers.set("cache-control", "public, max-age=31536000");
 
-    return c.body(object.body, { headers });
+    return c.body(object.body as any, { headers });
   } catch (error) {
     console.error("Error serving photo:", error);
     return c.json({ error: "Failed to serve photo" }, 500);

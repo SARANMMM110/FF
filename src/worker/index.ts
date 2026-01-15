@@ -3,6 +3,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 import { createLocalAuthMiddleware, generateSessionToken, getCurrentUserFromToken, SESSION_TOKEN_COOKIE_NAME, type LocalUser } from "../server/auth/localAuth.js";
 import { getGoogleOAuthRedirectUrl, exchangeGoogleCodeForTokens, getGoogleUserInfo } from "../server/auth/googleOAuth.js";
 import { processRecurringTasks, calculateNextOccurrence } from "./recurring-tasks.js";
@@ -344,8 +345,9 @@ app.post("/api/profile/photo", authMiddleware, async (c) => {
     const fileExtension = file.name.split(".").pop() || "jpg";
     const filename = `profile-photos/${user!.id}/${Date.now()}.${fileExtension}`;
 
-    // Upload to R2
-    await c.env.R2_BUCKET.put(filename, file, {
+    // Upload to R2 - convert File to ArrayBuffer for compatibility
+    const fileBuffer = await file.arrayBuffer();
+    await c.env.R2_BUCKET.put(filename, fileBuffer, {
       httpMetadata: {
         contentType: file.type,
       },
@@ -389,11 +391,11 @@ app.get("/api/profile/photo/file/:filename", async (c) => {
     }
 
     const headers = new Headers();
-    object.writeHttpMetadata(headers);
+    object.writeHttpMetadata(headers as any);
     headers.set("etag", object.httpEtag);
     headers.set("cache-control", "public, max-age=31536000");
 
-    return c.body(object.body, { headers });
+    return c.body(object.body as any, { headers });
   } catch (error) {
     console.error("Error serving photo:", error);
     return c.json({ error: "Failed to serve photo" }, 500);
