@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { apiFetch } from "@/react-app/utils/api";
 
 /**
  * Hook to automatically process recurring tasks when the app loads

@@ -803,7 +803,7 @@ app.post("/api/sessions", async (c) => {
       }
 
       // Try AWeber integration
-      const { addAWeberSubscriber } = await import("./aweber");
+      const { addAWeberSubscriber } = await import("./aweber.js");
       try {
         console.log("📤 [AWeber] Syncing user to AWeber:", user.email);
         const aweberResult = await addAWeberSubscriber(c.env, {
@@ -2658,7 +2658,7 @@ app.post("/api/email-signup", zValidator("json", EmailSignupSchema), async (c) =
     }
 
     // Try AWeber integration
-    const { addAWeberSubscriber } = await import("./aweber");
+    const { addAWeberSubscriber } = await import("./aweber.js");
     try {
       console.log("📤 [Email Signup] Starting AWeber sync for:", data.email);
       aweberResult = await addAWeberSubscriber(c.env, {
