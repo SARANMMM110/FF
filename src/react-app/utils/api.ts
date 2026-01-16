@@ -9,14 +9,10 @@ const getApiBaseUrl = (): string => {
     return import.meta.env.VITE_API_URL;
   }
   
-  // Priority 2: In production, use the backend API domain
-  if (import.meta.env.PROD) {
-    // Production backend URL (endpoints already include /api prefix)
-    return "/api";
-  }
-  
-  // Development default
-  return 'http://localhost:3000';
+  // Priority 2: Use relative /api path (works in both dev and prod)
+  // In development, Vite proxy will forward /api to http://localhost:3000
+  // In production, the web server will proxy /api to the backend
+  return "/api";
 };
 
 /**
@@ -24,8 +20,18 @@ const getApiBaseUrl = (): string => {
  */
 export const apiUrl = (endpoint: string): string => {
   const base = getApiBaseUrl();
-  // Remove leading slash if present to avoid double slashes
+  
+  // Remove leading slash if present
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+  
+  // If endpoint already starts with 'api/', use it as-is (it's already a full path)
+  // Otherwise, prepend the base
+  if (cleanEndpoint.startsWith('api/')) {
+    // Endpoint already includes 'api/' prefix, use it directly
+    return `/${cleanEndpoint}`;
+  }
+  
+  // Combine base with endpoint
   return `${base}/${cleanEndpoint}`;
 };
 
