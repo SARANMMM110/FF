@@ -9,13 +9,15 @@ const getApiBaseUrl = (): string => {
     return import.meta.env.VITE_API_URL;
   }
   
-  // Priority 2: In production, use the backend API domain
+  // Priority 2: Use relative /api path (works in both dev and prod)
+  // In development, Vite proxy will forward /api to http://localhost:3000
+  // In production, the web server will proxy /api to the backend
   if (import.meta.env.PROD) {
     return "https://focus.imsocialclub.com";
   }
   
-  // Development default
-  return 'http://localhost:3000';
+  // Development: use relative path to go through Vite proxy
+  return '/api';
 };
 
 /**
