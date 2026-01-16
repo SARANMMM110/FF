@@ -102,7 +102,7 @@ export async function processRecurringTasks(db: D1Database): Promise<{
     // Find all recurring tasks where next_occurrence_date <= today
     const { results } = await db.prepare(`
       SELECT * FROM tasks 
-      WHERE repeat != 'none' 
+      WHERE \`repeat\` != 'none' 
         AND next_occurrence_date IS NOT NULL 
         AND next_occurrence_date <= ?
         AND parent_recurring_task_id IS NULL

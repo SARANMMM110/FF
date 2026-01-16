@@ -1476,7 +1476,7 @@ app.post("/api/tasks", authMiddleware, zValidator("json", CreateTaskSchema), asy
     }
 
     const result = await c.env.DB.prepare(
-      `INSERT INTO tasks (user_id, title, description, priority, estimated_minutes, project, due_date, tags, status, repeat, repeat_detail, next_occurrence_date)
+      `INSERT INTO tasks (user_id, title, description, priority, estimated_minutes, project, due_date, tags, status, \`repeat\`, repeat_detail, next_occurrence_date)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)`
     )
       .bind(
@@ -1614,7 +1614,7 @@ app.patch("/api/tasks/:id", authMiddleware, zValidator("json", UpdateTaskSchema)
     values.push(data.tags ? JSON.stringify(data.tags) : null);
   }
   if (data.repeat !== undefined) {
-    updates.push("repeat = ?");
+    updates.push("`repeat` = ?");
     values.push(data.repeat);
     
     // Recalculate next occurrence if repeat pattern changed
@@ -3447,7 +3447,7 @@ app.post("/api/recurring-tasks/process", authMiddleware, async (c) => {
     const { results } = await c.env.DB.prepare(`
       SELECT * FROM tasks 
       WHERE user_id = ?
-        AND repeat != 'none' 
+        AND \`repeat\` != 'none' 
         AND next_occurrence_date IS NOT NULL 
         AND next_occurrence_date <= ?
         AND parent_recurring_task_id IS NULL
