@@ -1451,43 +1451,101 @@ app.get("/api/tasks", authMiddleware, async (c) => {
 });
 
 app.post("/api/tasks", authMiddleware, zValidator("json", CreateTaskSchema), async (c) => {
-  const user = c.get("user");
-  const data = c.req.valid("json");
+  try {
+    const user = c.get("user");
+    const data = c.req.valid("json");
 
-  const tagsJson = data.tags ? JSON.stringify(data.tags) : null;
-  const repeat = data.repeat || "none";
-  const repeatDetail = data.repeat_detail || null;
+    console.log("📝 [Tasks] Creating task:", {
+      user_id: user!.id,
+      title: data.title,
+      has_description: !!data.description,
+      priority: data.priority,
+      project: data.project,
+      due_date: data.due_date,
+      repeat: data.repeat
+    });
 
-  // Calculate next occurrence date if this is a recurring task
-  let nextOccurrence = null;
-  if (repeat !== "none" && data.due_date) {
-    nextOccurrence = calculateNextOccurrence(data.due_date, repeat, repeatDetail);
-  }
+    const tagsJson = data.tags ? JSON.stringify(data.tags) : null;
+    const repeat = data.repeat || "none";
+    const repeatDetail = data.repeat_detail || null;
 
-  const result = await c.env.DB.prepare(
-    `INSERT INTO tasks (user_id, title, description, priority, estimated_minutes, project, due_date, tags, status, repeat, repeat_detail, next_occurrence_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)`
-  )
-    .bind(
-      user!.id, 
-      data.title, 
-      data.description || null, 
-      data.priority || 0, 
-      data.estimated_minutes || null,
-      data.project || null,
-      data.due_date || null,
-      tagsJson,
-      repeat,
-      repeatDetail,
-      nextOccurrence
+    // Calculate next occurrence date if this is a recurring task
+    let nextOccurrence = null;
+    if (repeat !== "none" && data.due_date) {
+      nextOccurrence = calculateNextOccurrence(data.due_date, repeat, repeatDetail);
+    }
+
+    const result = await c.env.DB.prepare(
+      `INSERT INTO tasks (user_id, title, description, priority, estimated_minutes, project, due_date, tags, status, repeat, repeat_detail, next_occurrence_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)`
     )
-    .run();
+      .bind(
+        user!.id, 
+        data.title, 
+        data.description || null, 
+        data.priority || 0, 
+        data.estimated_minutes || null,
+        data.project || null,
+        data.due_date || null,
+        tagsJson,
+        repeat,
+        repeatDetail,
+        nextOccurrence
+      )
+      .run();
 
-  const { results } = await c.env.DB.prepare("SELECT * FROM tasks WHERE id = ?")
-    .bind(result.meta.last_row_id)
-    .all();
+    console.log("📝 [Tasks] Insert result:", {
+      success: result.success,
+      last_row_id: result.meta.last_row_id,
+      last_insert_rowid: result.meta.last_insert_rowid,
+      changes: result.meta.changes
+    });
 
-  return c.json(results[0], 201);
+    // Get the inserted ID - try both last_row_id and last_insert_rowid
+    const insertedId = result.meta.last_row_id || result.meta.last_insert_rowid;
+    
+    if (!insertedId) {
+      console.error("❌ [Tasks] No insert ID returned from database");
+      console.error("❌ [Tasks] Full result meta:", JSON.stringify(result.meta, null, 2));
+      throw new Error("Failed to get inserted task ID from database");
+    }
+
+    const { results } = await c.env.DB.prepare("SELECT * FROM tasks WHERE id = ?")
+      .bind(insertedId)
+      .all();
+
+    if (!results || results.length === 0) {
+      console.error("❌ [Tasks] Task was inserted but not found when querying by ID:", insertedId);
+      // Try to get the last inserted task for this user as fallback
+      const { results: fallbackResults } = await c.env.DB.prepare(
+        "SELECT * FROM tasks WHERE user_id = ? ORDER BY id DESC LIMIT 1"
+      ).bind(user!.id).all();
+      
+      if (fallbackResults && fallbackResults.length > 0) {
+        console.log("✅ [Tasks] Found task using fallback query");
+        return c.json(fallbackResults[0], 201);
+      }
+      
+      throw new Error("Task was created but could not be retrieved");
+    }
+
+    console.log("✅ [Tasks] Task created successfully:", insertedId);
+    return c.json(results[0], 201);
+  } catch (error: any) {
+    console.error("❌ [Tasks] Error creating task:", error);
+    console.error("❌ [Tasks] Error stack:", error?.stack);
+    console.error("❌ [Tasks] Error details:", {
+      message: error?.message,
+      code: error?.code,
+      errno: error?.errno,
+      sqlState: error?.sqlState
+    });
+    return c.json({ 
+      error: "Failed to create task", 
+      message: error?.message || "Unknown error occurred",
+      details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+    }, 500);
+  }
 });
 
 app.patch("/api/tasks/:id", authMiddleware, zValidator("json", UpdateTaskSchema), async (c) => {
@@ -2028,7 +2086,7 @@ app.get("/api/analytics", authMiddleware, async (c) => {
       SUM(
         CASE 
           WHEN end_time IS NOT NULL THEN duration_minutes
-          ELSE CAST((julianday('now') - julianday(start_time)) * 24 * 60 AS INTEGER)
+          ELSE TIMESTAMPDIFF(MINUTE, start_time, NOW())
         END
       ) as total_minutes,
       session_type
@@ -2139,29 +2197,31 @@ app.get("/api/dashboard-stats", authMiddleware, async (c) => {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Today's focus time (including active sessions)
-  const { results: todayResults } = await c.env.DB.prepare(`
-    SELECT COALESCE(SUM(
-      CASE 
-        WHEN end_time IS NOT NULL THEN duration_minutes
-        ELSE CAST((julianday('now') - julianday(start_time)) * 24 * 60 AS INTEGER)
-      END
-    ), 0) as total_minutes
-    FROM focus_sessions
-    WHERE user_id = ? AND session_type = 'focus' AND start_time >= ?
-  `).bind(user!.id, todayStart).all();
+  try {
+    // Today's focus time (including active sessions)
+    // MySQL: Use TIMESTAMPDIFF instead of julianday
+    const { results: todayResults } = await c.env.DB.prepare(`
+      SELECT COALESCE(SUM(
+        CASE 
+          WHEN end_time IS NOT NULL THEN duration_minutes
+          ELSE TIMESTAMPDIFF(MINUTE, start_time, NOW())
+        END
+      ), 0) as total_minutes
+      FROM focus_sessions
+      WHERE user_id = ? AND session_type = 'focus' AND start_time >= ?
+    `).bind(user!.id, todayStart).all();
 
-  // Week's focus time (including active sessions)
-  const { results: weekResults } = await c.env.DB.prepare(`
-    SELECT COALESCE(SUM(
-      CASE 
-        WHEN end_time IS NOT NULL THEN duration_minutes
-        ELSE CAST((julianday('now') - julianday(start_time)) * 24 * 60 AS INTEGER)
-      END
-    ), 0) as total_minutes
-    FROM focus_sessions
-    WHERE user_id = ? AND session_type = 'focus' AND start_time >= ?
-  `).bind(user!.id, weekAgo).all();
+    // Week's focus time (including active sessions)
+    const { results: weekResults } = await c.env.DB.prepare(`
+      SELECT COALESCE(SUM(
+        CASE 
+          WHEN end_time IS NOT NULL THEN duration_minutes
+          ELSE TIMESTAMPDIFF(MINUTE, start_time, NOW())
+        END
+      ), 0) as total_minutes
+      FROM focus_sessions
+      WHERE user_id = ? AND session_type = 'focus' AND start_time >= ?
+    `).bind(user!.id, weekAgo).all();
 
   // Completed tasks today
   const { results: completedResults } = await c.env.DB.prepare(`
@@ -2178,46 +2238,53 @@ app.get("/api/dashboard-stats", authMiddleware, async (c) => {
     WHERE user_id = ? AND session_type = 'focus' AND end_time IS NOT NULL AND start_time >= ?
   `).bind(user!.id, thirtyDaysAgo).all();
 
-  // Longest streak
-  const { results: streakDays } = await c.env.DB.prepare(`
-    SELECT DATE(start_time) as date, SUM(duration_minutes) as total_minutes
-    FROM focus_sessions
-    WHERE user_id = ? AND session_type = 'focus' AND end_time IS NOT NULL
-    GROUP BY DATE(start_time)
-    HAVING total_minutes >= 25
-    ORDER BY date DESC
-  `).bind(user!.id).all();
+    // Longest streak
+    const { results: streakDays } = await c.env.DB.prepare(`
+      SELECT DATE(start_time) as date, SUM(duration_minutes) as total_minutes
+      FROM focus_sessions
+      WHERE user_id = ? AND session_type = 'focus' AND end_time IS NOT NULL
+      GROUP BY DATE(start_time)
+      HAVING total_minutes >= 25
+      ORDER BY date DESC
+    `).bind(user!.id).all();
 
-  let longestStreak = 0;
-  let currentStreak = 0;
-  let lastDate: Date | null = null;
+    let longestStreak = 0;
+    let currentStreak = 0;
+    let lastDate: Date | null = null;
 
-  for (const row of streakDays) {
-    const currentDate = new Date(row.date as string);
-    
-    if (lastDate === null) {
-      currentStreak = 1;
-    } else {
-      const dayDiff = Math.round((lastDate.getTime() - currentDate.getTime()) / (24 * 60 * 60 * 1000));
-      if (dayDiff === 1) {
-        currentStreak++;
-      } else {
-        longestStreak = Math.max(longestStreak, currentStreak);
+    for (const row of streakDays as any[]) {
+      const currentDate = new Date(row.date as string);
+      
+      if (lastDate === null) {
         currentStreak = 1;
+      } else {
+        const dayDiff = Math.round((lastDate.getTime() - currentDate.getTime()) / (24 * 60 * 60 * 1000));
+        if (dayDiff === 1) {
+          currentStreak++;
+        } else {
+          longestStreak = Math.max(longestStreak, currentStreak);
+          currentStreak = 1;
+        }
       }
+      
+      lastDate = currentDate;
     }
-    
-    lastDate = currentDate;
-  }
-  longestStreak = Math.max(longestStreak, currentStreak);
+    longestStreak = Math.max(longestStreak, currentStreak);
 
-  return c.json({
-    today_focus_minutes: (todayResults[0] as any).total_minutes,
-    week_focus_minutes: (weekResults[0] as any).total_minutes,
-    completed_today: (completedResults[0] as any).count,
-    avg_session_minutes: Math.round((avgResults[0] as any).avg_minutes || 0),
-    longest_streak: longestStreak,
-  });
+    return c.json({
+      today_focus_minutes: (todayResults[0] as any)?.total_minutes || 0,
+      week_focus_minutes: (weekResults[0] as any)?.total_minutes || 0,
+      completed_today: (completedResults[0] as any)?.count || 0,
+      avg_session_minutes: Math.round((avgResults[0] as any)?.avg_minutes || 0),
+      longest_streak: longestStreak,
+    });
+  } catch (error: any) {
+    console.error("Error in dashboard-stats:", error);
+    return c.json({ 
+      error: "Failed to fetch dashboard stats", 
+      message: error?.message 
+    }, 500);
+  }
 });
 
 // Sessions by mode endpoint
@@ -2232,7 +2299,7 @@ app.get("/api/analytics/by-mode", authMiddleware, async (c) => {
       SUM(
         CASE 
           WHEN end_time IS NOT NULL THEN duration_minutes
-          ELSE CAST((julianday('now') - julianday(start_time)) * 24 * 60 AS INTEGER)
+          ELSE TIMESTAMPDIFF(MINUTE, start_time, NOW())
         END
       ) as total_minutes
     FROM focus_sessions
@@ -2262,7 +2329,7 @@ app.get("/api/analytics/by-project", authMiddleware, async (c) => {
       SUM(
         CASE 
           WHEN fs.end_time IS NOT NULL THEN fs.duration_minutes
-          ELSE CAST((julianday('now') - julianday(fs.start_time)) * 24 * 60 AS INTEGER)
+          ELSE TIMESTAMPDIFF(MINUTE, fs.start_time, NOW())
         END
       ) as total_minutes
     FROM focus_sessions fs
