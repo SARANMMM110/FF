@@ -1,5 +1,10 @@
 import { createPool, Pool, PoolConnection } from 'mysql2/promise';
-import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement, D1Result, D1ExecResult } from '@cloudflare/workers-types';
+
+// D1DatabaseSession is declared but not exported, so we define a compatible type
+type D1DatabaseSession = D1Database & {
+  getBookmark: () => string | null;
+};
 
 /**
  * D1Database adapter for Node.js using MySQL
@@ -204,6 +209,40 @@ class MysqlD1PreparedStatement implements D1PreparedStatement {
 }
 
 /**
+ * Convert a date to MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+ */
+function toMySQLDateTime(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) {
+    throw new Error(`Invalid date: ${date}`);
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Convert date values in an array to MySQL format
+ */
+function convertDatesForMySQL(values: unknown[]): unknown[] {
+  return values.map(value => {
+    // If it's a Date object or ISO 8601 string, convert it
+    if (value instanceof Date) {
+      return toMySQLDateTime(value);
+    }
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+      // Looks like an ISO 8601 date string
+      return toMySQLDateTime(value);
+    }
+    return value;
+  });
+}
+
+/**
  * Bound prepared statement (after calling .bind())
  */
 class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
@@ -214,7 +253,8 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
   constructor(pool: Pool, query: string, values: unknown[]) {
     this.pool = pool;
     this.query = query;
-    this.values = values;
+    // Convert ISO 8601 dates to MySQL format
+    this.values = convertDatesForMySQL(values);
   }
 
   bind(...values: unknown[]): D1PreparedStatement {
