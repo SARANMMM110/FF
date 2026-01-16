@@ -49,6 +49,11 @@ export const apiFetch = async (
 ): Promise<Response> => {
   const url = apiUrl(endpoint);
   
+  // Debug log in development
+  if (!import.meta.env.PROD) {
+    console.log(`[API] Fetching: ${url} (endpoint: ${endpoint})`);
+  }
+  
   try {
     const response = await fetch(url, {
       ...options,
