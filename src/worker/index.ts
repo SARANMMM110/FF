@@ -542,7 +542,7 @@ app.post("/api/sessions", async (c) => {
   // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
   // IMPORTANT: This must match EXACTLY what was used in /api/oauth/google/redirect_url
   const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-  const redirectUri = `${frontendUrl}/auth/callback`;
+  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
   
   console.log("🔐 [OAuth] Exchanging code for tokens:", {
     hasCode: !!body.code,
