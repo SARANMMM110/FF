@@ -460,6 +460,32 @@ app.get("/api/oauth/google/redirect_url", async (c) => {
   }
 });
 
+// Google OAuth callback endpoint - redirects to frontend with code
+app.get("/api/oauth/google/callback", async (c) => {
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  const error = c.req.query("error");
+
+  const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
+  const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
+
+  if (error) {
+    redirectUrl.searchParams.set("error", error);
+    return c.redirect(redirectUrl.toString());
+  }
+
+  if (code) {
+    redirectUrl.searchParams.set("code", code);
+    if (state) {
+      redirectUrl.searchParams.set("state", state);
+    }
+    return c.redirect(redirectUrl.toString());
+  }
+
+  // No code or error, redirect to home
+  return c.redirect(frontendUrl);
+});
+
 app.post("/api/sessions", async (c) => {
   const body = await c.req.json();
 

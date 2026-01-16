@@ -72,7 +72,14 @@ export async function exchangeGoogleCodeForTokens(
     throw new Error(errorMessage);
   }
 
-  return response.json();
+  const tokens = await response.json() as {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    id_token?: string;
+  };
+  
+  return tokens;
 }
 
 /**
@@ -94,6 +101,13 @@ export async function getGoogleUserInfo(accessToken: string): Promise<{
     throw new Error('Failed to get user info from Google');
   }
 
-  return response.json();
+  const userInfo = await response.json() as {
+    id: string;
+    email: string;
+    name: string;
+    picture?: string;
+  };
+  
+  return userInfo;
 }
 
