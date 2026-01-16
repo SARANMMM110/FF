@@ -12,7 +12,7 @@ const getApiBaseUrl = (): string => {
   // Priority 2: In production, use the backend API domain
   if (import.meta.env.PROD) {
     // Production backend URL (endpoints already include /api prefix)
-    return 'https://focus.imsocialclub.com';
+    return "/api";
   }
   
   // Development default
