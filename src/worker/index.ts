@@ -441,7 +441,7 @@ app.get("/api/oauth/google/redirect_url", async (c) => {
     // Construct the redirect URI - this is where Google will send the user after authentication
     // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
   const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-  const redirectUri = `${frontendUrl}/auth/callback`;
+  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
     
     // Generate the Google OAuth URL
     let redirectUrl = getGoogleOAuthRedirectUrl(
