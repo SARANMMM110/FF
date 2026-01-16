@@ -487,11 +487,12 @@ app.get("/api/oauth/google/callback", async (c) => {
 });
 
 app.post("/api/sessions", async (c) => {
-  const body = await c.req.json();
+  try {
+    const body = await c.req.json();
 
-  if (!body.code) {
-    return c.json({ error: "No authorization code provided" }, 400);
-  }
+    if (!body.code) {
+      return c.json({ error: "No authorization code provided" }, 400);
+    }
 
   // Initialize special plan
   let specialPlan: string | null = null;
@@ -852,6 +853,20 @@ app.post("/api/sessions", async (c) => {
   }
 
   return c.json({ success: true }, 200);
+  } catch (error: any) {
+    console.error("❌ [Sessions] Unhandled error in /api/sessions:", error);
+    console.error("❌ [Sessions] Error stack:", error?.stack);
+    console.error("❌ [Sessions] Error details:", {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code
+    });
+    return c.json({ 
+      error: "Session creation failed", 
+      message: error?.message || "Unknown error",
+      details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+    }, 500);
+  }
 });
 
 app.get("/api/users/me", authMiddleware, async (c) => {
