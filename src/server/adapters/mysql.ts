@@ -254,9 +254,15 @@ function convertDatesForMySQL(values: unknown[]): unknown[] {
     }
     // If it's an ISO 8601 datetime string (with time), convert to MySQL datetime
     if (typeof value === 'string') {
-      // Match ISO 8601 with time: 2026-01-19T12:36:56.984Z or 2026-01-19T12:36:56Z
+      // Match ISO 8601 with time: 2026-01-19T12:36:56.984Z or 2026-01-19T12:36:56Z or 2026-01-19T14:10:34.278Z
+      // This regex matches: YYYY-MM-DDTHH:MM:SS (with optional milliseconds and timezone)
       if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-        return toMySQLDateTime(value);
+        try {
+          return toMySQLDateTime(value);
+        } catch (error) {
+          console.error(`[MySQL] Failed to convert date string: ${value}`, error);
+          return value; // Return original if conversion fails
+        }
       }
       // Match date-only string: 2026-01-19
       if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -279,7 +285,19 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
     this.pool = pool;
     this.query = query;
     // Convert ISO 8601 dates to MySQL format
+    const originalValues = [...values];
     this.values = convertDatesForMySQL(values);
+    
+    // Debug: Log if any dates were converted (only in development)
+    if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'production') {
+      const converted = originalValues.some((val, i) => val !== this.values[i]);
+      if (converted) {
+        console.log('[MySQL] Date conversion applied:', {
+          original: originalValues,
+          converted: this.values
+        });
+      }
+    }
   }
 
   bind(...values: unknown[]): D1PreparedStatement {
