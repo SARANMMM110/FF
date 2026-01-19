@@ -1011,51 +1011,63 @@ app.get("/api/admin/stats", adminMiddleware, async (c) => {
 });
 
 app.get("/api/admin/users", adminMiddleware, async (c) => {
-  const page = parseInt(c.req.query("page") || "1");
-  const limit = parseInt(c.req.query("limit") || "20");
-  const offset = (page - 1) * limit;
+  try {
+    const page = parseInt(c.req.query("page") || "1");
+    const limit = parseInt(c.req.query("limit") || "20");
+    const offset = (page - 1) * limit;
 
-  // Get users with their stats from users table - using subqueries to avoid JOIN issues
-  const { results: users } = await c.env.DB.prepare(`
-    SELECT 
-      u.user_id,
-      u.email,
-      u.name,
-      u.signup_source,
-      u.subscription_plan,
-      u.created_at,
-      u.last_login_at,
-      (SELECT COUNT(*) FROM tasks WHERE user_id = u.user_id) as task_count,
-      (SELECT COUNT(*) FROM tasks WHERE user_id = u.user_id AND is_completed = 1) as completed_tasks,
-      (SELECT COALESCE(SUM(duration_minutes), 0) 
-       FROM focus_sessions 
-       WHERE user_id = u.user_id 
-         AND session_type = 'focus' 
-         AND end_time IS NOT NULL 
-         AND duration_minutes > 0
-      ) as total_focus_minutes,
-      (SELECT COUNT(*) FROM focus_sessions WHERE user_id = u.user_id AND end_time IS NOT NULL) as total_sessions,
-      (SELECT MAX(start_time) FROM focus_sessions WHERE user_id = u.user_id) as last_session_time,
-      u.last_login_at as last_activity
-    FROM users u
-    ORDER BY u.created_at DESC
-    LIMIT ? OFFSET ?
-  `).bind(limit, offset).all();
+    // Get users with their stats from users table - using subqueries to avoid JOIN issues
+    const { results: users } = await c.env.DB.prepare(`
+      SELECT 
+        u.user_id,
+        u.email,
+        u.name,
+        u.signup_source,
+        u.subscription_plan,
+        u.created_at,
+        u.last_login_at,
+        (SELECT COUNT(*) FROM tasks WHERE user_id = u.user_id) as task_count,
+        (SELECT COUNT(*) FROM tasks WHERE user_id = u.user_id AND is_completed = 1) as completed_tasks,
+        (SELECT COALESCE(SUM(duration_minutes), 0) 
+         FROM focus_sessions 
+         WHERE user_id = u.user_id 
+           AND session_type = 'focus' 
+           AND end_time IS NOT NULL 
+           AND duration_minutes > 0
+        ) as total_focus_minutes,
+        (SELECT COUNT(*) FROM focus_sessions WHERE user_id = u.user_id AND end_time IS NOT NULL) as total_sessions,
+        (SELECT MAX(start_time) FROM focus_sessions WHERE user_id = u.user_id) as last_session_time,
+        u.last_login_at as last_activity
+      FROM users u
+      ORDER BY u.created_at DESC
+      LIMIT ? OFFSET ?
+    `).bind(limit, offset).all();
 
-  // Get total count for pagination
-  const { results: totalCount } = await c.env.DB.prepare(
-    "SELECT COUNT(*) as count FROM users"
-  ).all();
+    // Get total count for pagination
+    const { results: totalCount } = await c.env.DB.prepare(
+      "SELECT COUNT(*) as count FROM users"
+    ).all();
 
-  return c.json({
-    users,
-    pagination: {
-      page,
-      limit,
-      total: (totalCount[0] as any).count,
-      pages: Math.ceil((totalCount[0] as any).count / limit)
-    }
-  });
+    return c.json({
+      users: users || [],
+      pagination: {
+        page,
+        limit,
+        total: (totalCount[0] as any)?.count || 0,
+        pages: Math.ceil(((totalCount[0] as any)?.count || 0) / limit)
+      }
+    });
+  } catch (error: any) {
+    console.error("[Admin] Error fetching users:", error);
+    console.error("[Admin] SQL Error:", error.sqlMessage || error.message);
+    console.error("[Admin] Error Code:", error.code);
+    return c.json({
+      error: "Failed to fetch users",
+      message: error.message,
+      details: error.sqlMessage || error.code,
+      stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+    }, 500);
+  }
 });
 
 app.get("/api/admin/users/:userId", adminMiddleware, async (c) => {
