@@ -34,17 +34,22 @@ export default function Toast({ message, type = "info", duration = 3000, onClose
     info: "from-[#E50914] to-[#FFD400]",
   };
 
+  // Safety check for React Error #31 (Objects are not valid as a React child)
+  // This happens if a Zod error object or other object is passed instead of a string
+  const displayMessage = typeof message === 'object' && message !== null
+    ? (message as any).message || JSON.stringify(message)
+    : String(message);
+
   return (
     <div
-      className={`transition-all duration-300 ${
-        isVisible ? "translate-y-0 opacity-100" : "-translate-y-4 opacity-0"
-      }`}
+      className={`transition-all duration-300 ${isVisible ? "translate-y-0 opacity-100" : "-translate-y-4 opacity-0"
+        }`}
     >
       <div
         className={`bg-gradient-to-r ${colors[type]} text-white rounded-xl shadow-2xl p-4 flex items-center gap-3 min-w-[300px] max-w-[400px]`}
       >
         {icons[type]}
-        <p className="flex-1 font-medium">{message}</p>
+        <p className="flex-1 font-medium">{displayMessage}</p>
         <button
           onClick={() => {
             setIsVisible(false);
