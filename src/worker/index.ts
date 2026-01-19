@@ -896,10 +896,13 @@ const AdminLoginSchema = z.object({
 
 app.post("/api/admin/login", zValidator("json", AdminLoginSchema), async (c) => {
   const { username, password } = c.req.valid("json");
+  
+  // Trim username to handle any accidental spaces
+  const trimmedUsername = username.trim();
 
   const { results } = await c.env.DB.prepare(
     "SELECT * FROM admin_users WHERE username = ?"
-  ).bind(username).all();
+  ).bind(trimmedUsername).all();
 
   if (results.length === 0) {
     return c.json({ error: "Invalid credentials" }, 401);
