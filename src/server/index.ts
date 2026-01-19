@@ -74,6 +74,10 @@ if (process.env.FRONTEND_URL) {
   const env = await getEnv();
 
   // Start server
+  // Use '0.0.0.0' to listen on all interfaces (IPv4) - required for production
+  // Use '127.0.0.1' if you want it to be private/localhost only
+  const hostname = process.env.HOSTNAME || '0.0.0.0';
+  
   serve({
     fetch: (request: Request) => {
       // Inject environment bindings into the request context
@@ -82,9 +86,10 @@ if (process.env.FRONTEND_URL) {
       return app.fetch(request, env as any);
     },
     port,
+    hostname,
   }, (info) => {
-    console.log(`✅ Server is running on http://localhost:${info.port}`);
-    console.log(`📝 API endpoints available at http://localhost:${info.port}/api/*`);
+    console.log(`✅ Server is running on http://${hostname}:${info.port}`);
+    console.log(`📝 API endpoints available at http://${hostname}:${info.port}/api/*`);
   });
 
   // Graceful shutdown
