@@ -828,8 +828,8 @@ app.post("/api/sessions", async (c) => {
       if (notInWaitlist) {
         try {
           await c.env.DB.prepare(
-            `INSERT INTO email_signups (email, name, signup_source, marketing_consent)
-             VALUES (?, ?, 'google-oauth', 1)`
+            `INSERT INTO email_signups (email, name, signup_source, marketing_consent, status)
+             VALUES (?, ?, 'google-oauth', 1, 'active')`
           ).bind(user.email, user.google_user_data?.name || "").run();
           console.log("💾 [Database] Added to email_signups:", user.email);
         } catch (dbError) {
@@ -1012,8 +1012,17 @@ app.get("/api/admin/stats", adminMiddleware, async (c) => {
 
 app.get("/api/admin/users", adminMiddleware, async (c) => {
   try {
-    const page = parseInt(c.req.query("page") || "1");
-    const limit = parseInt(c.req.query("limit") || "20");
+    const pageParam = c.req.query("page");
+    const limitParam = c.req.query("limit");
+    
+    let page = parseInt(pageParam || "1");
+    let limit = parseInt(limitParam || "20");
+    
+    // Safety check for NaN or invalid values
+    if (isNaN(page) || page < 1) page = 1;
+    if (isNaN(limit) || limit < 1) limit = 20;
+    if (limit > 100) limit = 100; // Cap limit at 100 for performance
+    
     const offset = (page - 1) * limit;
 
     // Get users with their stats from users table - using subqueries to avoid JOIN issues
@@ -2707,8 +2716,8 @@ app.post("/api/email-signup", zValidator("json", EmailSignupSchema), async (c) =
     // Save to database
     await c.env.DB.prepare(
       `INSERT INTO email_signups 
-       (email, name, signup_source, marketing_consent, ip_address, user_agent, referrer, utm_source, utm_medium, utm_campaign)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (email, name, signup_source, marketing_consent, ip_address, user_agent, referrer, utm_source, utm_medium, utm_campaign, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`
     ).bind(
       data.email,
       data.name || null,

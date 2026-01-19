@@ -58,7 +58,7 @@ export class MysqlD1Database implements D1Database {
   async exec(query: string): Promise<D1ExecResult> {
     const statements = query.split(';').filter(s => s.trim());
     const results: any[] = [];
-    
+
     const connection = await this.pool.getConnection();
     try {
       for (const statement of statements) {
@@ -285,14 +285,27 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
     this.pool = pool;
     this.query = query;
     // Convert ISO 8601 dates to MySQL format
-    const originalValues = [...values];
-    this.values = convertDatesForMySQL(values);
-    
-    // Debug: Log if any dates were converted (only in development)
+    const convertedValues = convertDatesForMySQL(values);
+
+    // Safety check: Ensure no NaN or undefined values are passed to MySQL execute
+    // as mysql2 is very strict about prepared statement arguments
+    this.values = convertedValues.map(v => {
+      if (typeof v === 'number' && isNaN(v)) {
+        console.warn('[MySQL] Detected NaN value in query parameters, converting to 0');
+        return 0;
+      }
+      if (v === undefined) {
+        return null;
+      }
+      return v;
+    });
+
+    // Debug: Log if any values were converted (only in development)
     if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'production') {
+      const originalValues = [...values];
       const converted = originalValues.some((val, i) => val !== this.values[i]);
       if (converted) {
-        console.log('[MySQL] Date conversion applied:', {
+        console.log('[MySQL] Value conversion applied:', {
           original: originalValues,
           converted: this.values
         });
