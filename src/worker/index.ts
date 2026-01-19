@@ -410,11 +410,12 @@ const adminMiddleware = async (c: any, next: any) => {
     return c.json({ error: "Admin authentication required" }, 401);
   }
 
+  // Use MySQL syntax: NOW() instead of datetime('now')
   const { results } = await c.env.DB.prepare(
     `SELECT au.*, ads.expires_at 
      FROM admin_users au 
      JOIN admin_sessions ads ON au.id = ads.admin_id 
-     WHERE ads.session_token = ? AND ads.expires_at > datetime('now')`
+     WHERE ads.session_token = ? AND ads.expires_at > NOW()`
   ).bind(token).all();
 
   if (results.length === 0) {
@@ -992,10 +993,10 @@ app.get("/api/admin/stats", adminMiddleware, async (c) => {
   ).all();
 
   // Active users (users with activity in last 7 days)
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  // Use MySQL DATE_SUB instead of JavaScript date calculation
   const { results: activeUsers } = await c.env.DB.prepare(
-    "SELECT COUNT(DISTINCT user_id) as count FROM users WHERE last_login_at >= ?"
-  ).bind(sevenDaysAgo).all();
+    "SELECT COUNT(DISTINCT user_id) as count FROM users WHERE last_login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+  ).all();
 
   return c.json({
     total_users: (userCount[0] as any).count,
