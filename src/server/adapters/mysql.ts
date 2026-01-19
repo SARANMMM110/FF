@@ -64,7 +64,7 @@ export class MysqlD1Database implements D1Database {
       for (const statement of statements) {
         if (statement.trim()) {
           try {
-            const [result]: any = await connection.execute(statement);
+            const [result]: any = await connection.query(statement);
             results.push({
               success: true,
               meta: {
@@ -129,7 +129,7 @@ class MysqlD1PreparedStatement implements D1PreparedStatement {
 
   async first<T = unknown>(colName?: string): Promise<T | null> {
     try {
-      const [rows]: any = await this.pool.execute(this.query);
+      const [rows]: any = await this.pool.query(this.query);
       const row = rows[0] as T | undefined;
       if (colName && row && typeof row === 'object') {
         return Promise.resolve((row as any)[colName] ?? null);
@@ -143,7 +143,7 @@ class MysqlD1PreparedStatement implements D1PreparedStatement {
 
   async run<T = unknown>(): Promise<D1Result<T>> {
     try {
-      const [result]: any = await this.pool.execute(this.query);
+      const [result]: any = await this.pool.query(this.query);
       return {
         success: true,
         meta: {
@@ -165,7 +165,7 @@ class MysqlD1PreparedStatement implements D1PreparedStatement {
 
   async all<T = unknown>(): Promise<D1Result<T>> {
     try {
-      const [rows]: any = await this.pool.execute(this.query);
+      const [rows]: any = await this.pool.query(this.query);
       return {
         success: true,
         meta: {
@@ -186,7 +186,7 @@ class MysqlD1PreparedStatement implements D1PreparedStatement {
   async raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
   async raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
     try {
-      const [rows]: any = await this.pool.execute(this.query);
+      const [rows]: any = await this.pool.query(this.query);
       const typedRows = rows as T[];
       if (options?.columnNames) {
         const columnNames: string[] = [];
@@ -325,7 +325,7 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
 
   async first<T = unknown>(colName?: string): Promise<T | null> {
     try {
-      const [rows]: any = await this.pool.execute(this.query, this.values);
+      const [rows]: any = await this.pool.query(this.query, this.values);
       const row = rows[0] as T | undefined;
       if (colName && row && typeof row === 'object') {
         return (row as any)[colName] ?? null;
@@ -339,7 +339,7 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
 
   async run<T = unknown>(): Promise<D1Result<T>> {
     try {
-      const [result]: any = await this.pool.execute(this.query, this.values);
+      const [result]: any = await this.pool.query(this.query, this.values);
       return {
         success: true,
         meta: {
@@ -361,7 +361,7 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
 
   async all<T = unknown>(): Promise<D1Result<T>> {
     try {
-      const [rows]: any = await this.pool.execute(this.query, this.values);
+      const [rows]: any = await this.pool.query(this.query, this.values);
       return {
         success: true,
         meta: {
@@ -382,7 +382,7 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
   async raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
   async raw<T = unknown[]>(options?: { columnNames?: boolean }): Promise<T[] | [string[], ...T[]]> {
     try {
-      const [rows]: any = await this.pool.execute(this.query, this.values);
+      const [rows]: any = await this.pool.query(this.query, this.values);
       const typedRows = rows as T[];
       if (options?.columnNames) {
         const columnNames: string[] = [];
