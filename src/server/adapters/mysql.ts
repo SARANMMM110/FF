@@ -258,10 +258,12 @@ class BoundMysqlD1PreparedStatement implements D1PreparedStatement {
   }
 
   bind(...values: unknown[]): D1PreparedStatement {
+    // Convert dates in the new values before adding them
+    const convertedNewValues = convertDatesForMySQL(values);
     return new BoundMysqlD1PreparedStatement(
       this.pool,
       this.query,
-      [...this.values, ...values]
+      [...this.values, ...convertedNewValues]
     );
   }
 

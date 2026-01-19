@@ -1642,11 +1642,22 @@ app.patch("/api/tasks/:id", authMiddleware, zValidator("json", UpdateTaskSchema)
 
   values.push(id, user!.id);
 
-  await c.env.DB.prepare(
-    `UPDATE tasks SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`
-  )
-    .bind(...values)
-    .run();
+  try {
+    await c.env.DB.prepare(
+      `UPDATE tasks SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`
+    )
+      .bind(...values)
+      .run();
+  } catch (error: any) {
+    console.error("[Tasks] Error updating task:", error);
+    console.error("[Tasks] SQL:", `UPDATE tasks SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`);
+    console.error("[Tasks] Values:", values);
+    return c.json({ 
+      error: "Failed to update task", 
+      message: error.message,
+      details: error.sqlMessage || error.code 
+    }, 500);
+  }
 
   const { results } = await c.env.DB.prepare("SELECT * FROM tasks WHERE id = ?")
     .bind(id)
