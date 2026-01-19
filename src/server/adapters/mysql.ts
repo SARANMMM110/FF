@@ -226,17 +226,42 @@ function toMySQLDateTime(date: Date | string): string {
 }
 
 /**
+ * Convert a date to MySQL date format (YYYY-MM-DD) for DATE columns
+ */
+function toMySQLDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) {
+    throw new Error(`Invalid date: ${date}`);
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Convert date values in an array to MySQL format
  */
 function convertDatesForMySQL(values: unknown[]): unknown[] {
   return values.map(value => {
-    // If it's a Date object or ISO 8601 string, convert it
+    // Skip null values
+    if (value === null || value === undefined) {
+      return value;
+    }
+    // If it's a Date object, convert it to MySQL datetime
     if (value instanceof Date) {
       return toMySQLDateTime(value);
     }
-    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-      // Looks like an ISO 8601 date string
-      return toMySQLDateTime(value);
+    // If it's an ISO 8601 datetime string (with time), convert to MySQL datetime
+    if (typeof value === 'string') {
+      // Match ISO 8601 with time: 2026-01-19T12:36:56.984Z or 2026-01-19T12:36:56Z
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+        return toMySQLDateTime(value);
+      }
+      // Match date-only string: 2026-01-19
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return value; // DATE columns accept YYYY-MM-DD format directly
+      }
     }
     return value;
   });
