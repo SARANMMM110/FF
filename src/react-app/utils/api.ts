@@ -8,7 +8,7 @@ const getApiBaseUrl = (): string => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  
+
   // Priority 2: Use relative /api path (works in both dev and prod)
   // In development, Vite proxy will forward /api to http://localhost:3000
   // In production, the web server (Nginx) will proxy /api to the backend
@@ -21,17 +21,17 @@ const getApiBaseUrl = (): string => {
  */
 export const apiUrl = (endpoint: string): string => {
   const base = getApiBaseUrl();
-  
+
   // Remove leading slash if present
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-  
+
   // If endpoint already starts with 'api/', use it as-is (it's already a full path)
   // Otherwise, prepend the base
   if (cleanEndpoint.startsWith('api/')) {
     // Endpoint already includes 'api/' prefix, use it directly
     return `/${cleanEndpoint}`;
   }
-  
+
   // Combine base with endpoint
   return `${base}/${cleanEndpoint}`;
 };
@@ -44,18 +44,18 @@ export const apiFetch = async (
   options?: RequestInit
 ): Promise<Response> => {
   const url = apiUrl(endpoint);
-  
+
   // Debug log in development
   if (!import.meta.env.PROD) {
     console.log(`[API] Fetching: ${url} (endpoint: ${endpoint})`);
   }
-  
+
   try {
     const response = await fetch(url, {
       ...options,
       credentials: 'include', // Always include credentials for cookies
       headers: {
-        'Content-Type': 'application/json',
+        ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...options?.headers,
       },
     });
