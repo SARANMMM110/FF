@@ -43,7 +43,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // CORS middleware
 app.use('*', async (c, next) => {
   const origin = c.req.header('Origin');
-  
+
   // In development, allow requests from localhost:5173 or any origin
   // In production, only allow from configured FRONTEND_URL
   if (process.env.NODE_ENV !== 'production') {
@@ -270,11 +270,11 @@ app.patch("/api/profile", authMiddleware, zValidator("json", UpdateProfileSchema
     // Create new profile
     const createValues = [user!.id];
     const createFields = ["user_id"];
-    
+
     // Add all fields for creation
-    createFields.push("display_name", "bio", "phone", "address_line1", "address_line2", 
-                     "city", "state", "country", "postal_code", "profile_photo_url", 
-                     "website_url", "timezone", "date_of_birth", "occupation", "company");
+    createFields.push("display_name", "bio", "phone", "address_line1", "address_line2",
+      "city", "state", "country", "postal_code", "profile_photo_url",
+      "website_url", "timezone", "date_of_birth", "occupation", "company");
     createValues.push(
       data.display_name || "",
       data.bio || "",
@@ -323,6 +323,11 @@ app.patch("/api/profile", authMiddleware, zValidator("json", UpdateProfileSchema
 app.post("/api/profile/photo", authMiddleware, async (c) => {
   const user = c.get("user");
 
+  if (!c.env.R2_BUCKET) {
+    console.error("R2_BUCKET binding is missing");
+    return c.json({ error: "Server configuration error: Storage not connected" }, 500);
+  }
+
   try {
     const formData = await c.req.formData();
     const file = formData.get("photo") as File;
@@ -364,13 +369,17 @@ app.post("/api/profile/photo", authMiddleware, async (c) => {
       .bind(publicUrl, new Date().toISOString(), user!.id)
       .run();
 
-    return c.json({ 
+    return c.json({
       url: publicUrl,
-      message: "Photo uploaded successfully" 
+      message: "Photo uploaded successfully"
     });
   } catch (error) {
     console.error("Photo upload error:", error);
-    return c.json({ error: "Failed to upload photo" }, 500);
+    return c.json({
+      error: "Failed to upload photo",
+      details: error instanceof Error ? error.message : String(error),
+      stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+    }, 500);
   }
 });
 
@@ -385,7 +394,7 @@ app.get("/api/profile/photo/file/:filename", async (c) => {
 
   try {
     const object = await c.env.R2_BUCKET.get(`profile-photos/${userId}/${filename}`);
-    
+
     if (!object) {
       return c.json({ error: "Photo not found" }, 404);
     }
@@ -405,7 +414,7 @@ app.get("/api/profile/photo/file/:filename", async (c) => {
 // Admin middleware
 const adminMiddleware = async (c: any, next: any) => {
   const token = c.req.header("Authorization")?.replace("Bearer ", "") || getCookie(c, "admin_session_token");
-  
+
   if (!token) {
     return c.json({ error: "Admin authentication required" }, 401);
   }
@@ -437,13 +446,13 @@ app.get("/api/oauth/google/redirect_url", async (c) => {
   }
 
   const plan = c.req.query("plan"); // Check for special plan parameter
-  
+
   try {
     // Construct the redirect URI - this is where Google will send the user after authentication
     // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
-  const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
-    
+    const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
+    const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
+
     // Generate the Google OAuth URL
     let redirectUrl = getGoogleOAuthRedirectUrl(
       c.env.GOOGLE_CALENDAR_CLIENT_ID,
@@ -495,365 +504,365 @@ app.post("/api/sessions", async (c) => {
       return c.json({ error: "No authorization code provided" }, 400);
     }
 
-  // Initialize special plan
-  let specialPlan: string | null = null;
+    // Initialize special plan
+    let specialPlan: string | null = null;
 
-  // Check for registration code FIRST (for secure code-based links) - takes priority
-  const registrationCode = body.registration_code;
-  if (registrationCode) {
-    console.log(`🔍 [Registration Code] Received code in request: ${registrationCode}`);
-    
-    // Validate and get plan from registration code
-    const { results } = await c.env.DB.prepare(`
+    // Check for registration code FIRST (for secure code-based links) - takes priority
+    const registrationCode = body.registration_code;
+    if (registrationCode) {
+      console.log(`🔍 [Registration Code] Received code in request: ${registrationCode}`);
+
+      // Validate and get plan from registration code
+      const { results } = await c.env.DB.prepare(`
       SELECT plan_id, max_uses, current_uses, expires_at, is_active
       FROM registration_codes 
       WHERE code = ?
     `).bind(registrationCode).all();
 
-    console.log(`🔍 [Registration Code] Database query returned ${results.length} results`);
+      console.log(`🔍 [Registration Code] Database query returned ${results.length} results`);
 
-    if (results.length > 0) {
-      const regCode = results[0] as any;
-      console.log(`🔍 [Registration Code] Found code in database:`, {
-        plan_id: regCode.plan_id,
-        max_uses: regCode.max_uses,
-        current_uses: regCode.current_uses,
-        expires_at: regCode.expires_at,
-        is_active: regCode.is_active
-      });
-      
-      // Validate the code
-      const isValid = regCode.is_active && 
-                     (!regCode.expires_at || new Date(regCode.expires_at) > new Date()) &&
-                     (!regCode.max_uses || regCode.current_uses < regCode.max_uses);
+      if (results.length > 0) {
+        const regCode = results[0] as any;
+        console.log(`🔍 [Registration Code] Found code in database:`, {
+          plan_id: regCode.plan_id,
+          max_uses: regCode.max_uses,
+          current_uses: regCode.current_uses,
+          expires_at: regCode.expires_at,
+          is_active: regCode.is_active
+        });
 
-      console.log(`🔍 [Registration Code] Code validation result: ${isValid ? 'VALID' : 'INVALID'}`);
+        // Validate the code
+        const isValid = regCode.is_active &&
+          (!regCode.expires_at || new Date(regCode.expires_at) > new Date()) &&
+          (!regCode.max_uses || regCode.current_uses < regCode.max_uses);
 
-      if (isValid) {
-        specialPlan = regCode.plan_id;
-        
-        // Increment usage counter
-        await c.env.DB.prepare(
-          "UPDATE registration_codes SET current_uses = current_uses + 1, updated_at = ? WHERE code = ?"
-        ).bind(new Date().toISOString(), registrationCode).run();
-        
-        console.log(`🎟️ [Registration Code] ✅ Valid code used: ${registrationCode} for plan: ${regCode.plan_id.toUpperCase()}`);
+        console.log(`🔍 [Registration Code] Code validation result: ${isValid ? 'VALID' : 'INVALID'}`);
+
+        if (isValid) {
+          specialPlan = regCode.plan_id;
+
+          // Increment usage counter
+          await c.env.DB.prepare(
+            "UPDATE registration_codes SET current_uses = current_uses + 1, updated_at = ? WHERE code = ?"
+          ).bind(new Date().toISOString(), registrationCode).run();
+
+          console.log(`🎟️ [Registration Code] ✅ Valid code used: ${registrationCode} for plan: ${regCode.plan_id.toUpperCase()}`);
+        } else {
+          console.warn(`⚠️ [Registration Code] ❌ Invalid or expired code: ${registrationCode}`);
+        }
       } else {
-        console.warn(`⚠️ [Registration Code] ❌ Invalid or expired code: ${registrationCode}`);
+        console.warn(`⚠️ [Registration Code] ❌ Code not found in database: ${registrationCode}`);
       }
     } else {
-      console.warn(`⚠️ [Registration Code] ❌ Code not found in database: ${registrationCode}`);
+      console.log(`ℹ️ [Registration Code] No registration code in request body`);
     }
-  } else {
-    console.log(`ℹ️ [Registration Code] No registration code in request body`);
-  }
-  
-  // Fall back to state parameter if no registration code (for ?plan=pro style links)
-  if (!specialPlan && body.state && ["pro", "enterprise"].includes(body.state)) {
-    specialPlan = body.state;
-    console.log(`📋 [Simple Plan Link] Using plan from state parameter: ${body.state.toUpperCase()}`);
-  }
 
-  console.log(`📊 [Registration] Final special plan determined: ${specialPlan || 'NONE (will use free)'}`);
-  console.log(`📊 [Registration] Request body:`, JSON.stringify({ 
-    has_code: !!body.code, 
-    has_state: !!body.state,
-    has_registration_code: !!body.registration_code 
-  }));
+    // Fall back to state parameter if no registration code (for ?plan=pro style links)
+    if (!specialPlan && body.state && ["pro", "enterprise"].includes(body.state)) {
+      specialPlan = body.state;
+      console.log(`📋 [Simple Plan Link] Using plan from state parameter: ${body.state.toUpperCase()}`);
+    }
 
-  // Exchange Google OAuth code for tokens
-  if (!c.env.GOOGLE_CALENDAR_CLIENT_ID || !c.env.GOOGLE_CALENDAR_CLIENT_SECRET) {
-    console.error("❌ [OAuth] Google OAuth credentials not configured");
-    return c.json({ error: "Google OAuth not configured" }, 500);
-  }
+    console.log(`📊 [Registration] Final special plan determined: ${specialPlan || 'NONE (will use free)'}`);
+    console.log(`📊 [Registration] Request body:`, JSON.stringify({
+      has_code: !!body.code,
+      has_state: !!body.state,
+      has_registration_code: !!body.registration_code
+    }));
 
-  // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
-  // IMPORTANT: This must match EXACTLY what was used in /api/oauth/google/redirect_url
-  const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
-  
-  console.log("🔐 [OAuth] Exchanging code for tokens:", {
-    hasCode: !!body.code,
-    redirectUri,
-    clientId: c.env.GOOGLE_CALENDAR_CLIENT_ID?.substring(0, 20) + '...'
-  });
-  
-  let googleUserInfo: any;
-  try {
-    const tokens = await exchangeGoogleCodeForTokens(
-      body.code,
-      c.env.GOOGLE_CALENDAR_CLIENT_ID,
-      c.env.GOOGLE_CALENDAR_CLIENT_SECRET,
-      redirectUri
-    );
+    // Exchange Google OAuth code for tokens
+    if (!c.env.GOOGLE_CALENDAR_CLIENT_ID || !c.env.GOOGLE_CALENDAR_CLIENT_SECRET) {
+      console.error("❌ [OAuth] Google OAuth credentials not configured");
+      return c.json({ error: "Google OAuth not configured" }, 500);
+    }
 
-    console.log("✅ [OAuth] Successfully exchanged code for tokens");
-    
-    // Get user info from Google
-    googleUserInfo = await getGoogleUserInfo(tokens.access_token);
-    console.log("✅ [OAuth] Successfully retrieved user info:", googleUserInfo.email);
-  } catch (error: any) {
-    console.error("❌ [OAuth] Error exchanging OAuth code:", error);
-    console.error("❌ [OAuth] Error details:", {
-      message: error.message,
+    // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
+    // IMPORTANT: This must match EXACTLY what was used in /api/oauth/google/redirect_url
+    const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
+    const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
+
+    console.log("🔐 [OAuth] Exchanging code for tokens:", {
+      hasCode: !!body.code,
       redirectUri,
-      frontendUrl: c.env.FRONTEND_URL
+      clientId: c.env.GOOGLE_CALENDAR_CLIENT_ID?.substring(0, 20) + '...'
     });
-    return c.json({ 
-      error: "Failed to authenticate with Google", 
-      message: error.message,
-      details: "Check backend console for more details"
-    }, 500);
-  }
 
-  // Create or get user from database
-  const userId = `google_${googleUserInfo.id}`;
-  const user = {
-    id: userId,
-    email: googleUserInfo.email,
-    name: googleUserInfo.name,
-    google_user_data: {
-      sub: googleUserInfo.id,
-      name: googleUserInfo.name,
-      email: googleUserInfo.email,
-      picture: googleUserInfo.picture,
-    },
-  };
-
-  // Generate session token
-  const sessionToken = generateSessionToken(userId);
-
-  // Cookie settings - use secure only in production
-  const isProduction = process.env.NODE_ENV === 'production';
-  setCookie(c, SESSION_TOKEN_COOKIE_NAME, sessionToken, {
-    httpOnly: true,
-    path: "/",
-    sameSite: isProduction ? "none" : "lax", // Use 'lax' for local development
-    secure: isProduction, // Only use secure cookies in production (HTTPS)
-    maxAge: 60 * 24 * 60 * 60, // 60 days
-  });
-
-  if (user) {
-    let userCheck: any[] = [];
-    let settingsCheck: any[] = [];
-    
+    let googleUserInfo: any;
     try {
-    // Check if this user exists in our database
-      const userResult = await c.env.DB.prepare(
-      "SELECT user_id FROM users WHERE user_id = ? LIMIT 1"
-    ).bind(user.id).all();
-      userCheck = userResult.results || [];
+      const tokens = await exchangeGoogleCodeForTokens(
+        body.code,
+        c.env.GOOGLE_CALENDAR_CLIENT_ID,
+        c.env.GOOGLE_CALENDAR_CLIENT_SECRET,
+        redirectUri
+      );
 
-      const settingsResult = await c.env.DB.prepare(
-      "SELECT user_id FROM user_settings WHERE user_id = ? LIMIT 1"
-    ).bind(user.id).all();
-      settingsCheck = settingsResult.results || [];
-    } catch (dbError: any) {
-      console.error("❌ [Database] Error checking user:", dbError);
-      return c.json({ 
-        error: "Database error", 
-        message: dbError.message || "Failed to check user in database",
-        details: "Make sure database tables exist. Run migrations if needed."
+      console.log("✅ [OAuth] Successfully exchanged code for tokens");
+
+      // Get user info from Google
+      googleUserInfo = await getGoogleUserInfo(tokens.access_token);
+      console.log("✅ [OAuth] Successfully retrieved user info:", googleUserInfo.email);
+    } catch (error: any) {
+      console.error("❌ [OAuth] Error exchanging OAuth code:", error);
+      console.error("❌ [OAuth] Error details:", {
+        message: error.message,
+        redirectUri,
+        frontendUrl: c.env.FRONTEND_URL
+      });
+      return c.json({
+        error: "Failed to authenticate with Google",
+        message: error.message,
+        details: "Check backend console for more details"
       }, 500);
     }
 
-    let signupCheck: any[] = [];
-    try {
-      const signupResult = await c.env.DB.prepare(
-      "SELECT email FROM email_signups WHERE email = ? LIMIT 1"
-    ).bind(user.email).all();
-      signupCheck = signupResult.results || [];
-    } catch (dbError: any) {
-      console.error("❌ [Database] Error checking email signups:", dbError);
-      // Continue - this is not critical
-    }
+    // Create or get user from database
+    const userId = `google_${googleUserInfo.id}`;
+    const user = {
+      id: userId,
+      email: googleUserInfo.email,
+      name: googleUserInfo.name,
+      google_user_data: {
+        sub: googleUserInfo.id,
+        name: googleUserInfo.name,
+        email: googleUserInfo.email,
+        picture: googleUserInfo.picture,
+      },
+    };
 
-    const isNewUser = userCheck.length === 0;
-    const notInWaitlist = signupCheck.length === 0;
+    // Generate session token
+    const sessionToken = generateSessionToken(userId);
 
-    console.log("👤 [Auth] User sign-in:", {
-      email: user.email,
-      user_id: user.id,
-      is_new_user: isNewUser,
-      already_in_waitlist: !notInWaitlist,
-      special_plan: specialPlan
+    // Cookie settings - use secure only in production
+    const isProduction = process.env.NODE_ENV === 'production';
+    setCookie(c, SESSION_TOKEN_COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      path: "/",
+      sameSite: isProduction ? "none" : "lax", // Use 'lax' for local development
+      secure: isProduction, // Only use secure cookies in production (HTTPS)
+      maxAge: 60 * 24 * 60 * 60, // 60 days
     });
 
-    // Insert or update user record
-    if (isNewUser) {
-      // Determine subscription plan - use special plan if provided, otherwise default to free
-      const subscriptionPlan = specialPlan || 'free';
-      
-      console.log(`💾 [Database] Creating NEW user with plan: ${subscriptionPlan.toUpperCase()}`);
-      
+    if (user) {
+      let userCheck: any[] = [];
+      let settingsCheck: any[] = [];
+
       try {
-      await c.env.DB.prepare(
-        `INSERT INTO users (user_id, email, name, google_user_id, profile_picture_url, signup_source, subscription_plan, last_login_at)
-         VALUES (?, ?, ?, ?, ?, 'google-oauth', ?, ?)`
-      ).bind(
-        user.id,
-        user.email,
-        user.google_user_data?.name || null,
-        user.google_user_data?.sub || null,
-        user.google_user_data?.picture || null,
-        subscriptionPlan,
-        new Date().toISOString()
-      ).run();
+        // Check if this user exists in our database
+        const userResult = await c.env.DB.prepare(
+          "SELECT user_id FROM users WHERE user_id = ? LIMIT 1"
+        ).bind(user.id).all();
+        userCheck = userResult.results || [];
+
+        const settingsResult = await c.env.DB.prepare(
+          "SELECT user_id FROM user_settings WHERE user_id = ? LIMIT 1"
+        ).bind(user.id).all();
+        settingsCheck = settingsResult.results || [];
       } catch (dbError: any) {
-        console.error("❌ [Database] Error creating user:", dbError);
-        return c.json({ 
-          error: "Database error", 
-          message: dbError.message || "Failed to create user in database",
-          details: "Make sure database tables exist. Run 'npm run migrate' to create tables."
+        console.error("❌ [Database] Error checking user:", dbError);
+        return c.json({
+          error: "Database error",
+          message: dbError.message || "Failed to check user in database",
+          details: "Make sure database tables exist. Run migrations if needed."
         }, 500);
       }
-      
-      console.log(`✅ [Database] Successfully created user record for: ${user.id} with plan: ${subscriptionPlan.toUpperCase()}`);
-      
-      // Verify the insert worked
-      const { results: verifyResults } = await c.env.DB.prepare(
-        "SELECT user_id, email, subscription_plan FROM users WHERE user_id = ?"
-      ).bind(user.id).all();
-      
-      if (verifyResults.length > 0) {
-        const savedUser = verifyResults[0] as any;
-        console.log(`✅ [Database] Verification - User saved with subscription_plan: ${savedUser.subscription_plan}`);
-      } else {
-        console.error(`❌ [Database] ERROR: User was not found after insert!`);
+
+      let signupCheck: any[] = [];
+      try {
+        const signupResult = await c.env.DB.prepare(
+          "SELECT email FROM email_signups WHERE email = ? LIMIT 1"
+        ).bind(user.email).all();
+        signupCheck = signupResult.results || [];
+      } catch (dbError: any) {
+        console.error("❌ [Database] Error checking email signups:", dbError);
+        // Continue - this is not critical
       }
-      
-      // Log special registration if applicable
-      if (specialPlan) {
-        console.log(`🎁 [Special Registration] New user ${user.email} registered with ${specialPlan.toUpperCase()} plan via registration link`);
-      }
-    } else {
-      console.log(`💾 [Database] User already exists: ${user.id}`);
-      
-      // Existing user - update last login
-      await c.env.DB.prepare(
-        "UPDATE users SET last_login_at = ?, updated_at = ? WHERE user_id = ?"
-      ).bind(new Date().toISOString(), new Date().toISOString(), user.id).run();
-      console.log(`💾 [Database] Updated last_login_at for: ${user.id}`);
-      
-      // If existing user has a special plan from registration code, upgrade their account
-      if (specialPlan && registrationCode) {
-        console.log(`🔍 [Account Upgrade] Checking if upgrade needed for existing user: ${user.email}`);
-        
-        // Get current plan
-        const { results: currentUserData } = await c.env.DB.prepare(
-          "SELECT subscription_plan FROM users WHERE user_id = ?"
-        ).bind(user.id).all();
-        
-        const currentPlan = currentUserData.length > 0 ? (currentUserData[0] as any).subscription_plan : 'free';
-        console.log(`🔍 [Account Upgrade] Current plan: ${currentPlan}, Target plan: ${specialPlan}`);
-        
-        // Only upgrade if not already on this plan or higher
-        const planHierarchy: Record<string, number> = { 'free': 0, 'pro': 1, 'enterprise': 2 };
-        const currentLevel = planHierarchy[currentPlan] || 0;
-        const newLevel = planHierarchy[specialPlan] || 0;
-        
-        if (newLevel > currentLevel) {
-          console.log(`⬆️ [Account Upgrade] Upgrading from ${currentPlan.toUpperCase()} (level ${currentLevel}) to ${specialPlan.toUpperCase()} (level ${newLevel})`);
-          
+
+      const isNewUser = userCheck.length === 0;
+      const notInWaitlist = signupCheck.length === 0;
+
+      console.log("👤 [Auth] User sign-in:", {
+        email: user.email,
+        user_id: user.id,
+        is_new_user: isNewUser,
+        already_in_waitlist: !notInWaitlist,
+        special_plan: specialPlan
+      });
+
+      // Insert or update user record
+      if (isNewUser) {
+        // Determine subscription plan - use special plan if provided, otherwise default to free
+        const subscriptionPlan = specialPlan || 'free';
+
+        console.log(`💾 [Database] Creating NEW user with plan: ${subscriptionPlan.toUpperCase()}`);
+
+        try {
           await c.env.DB.prepare(
-            "UPDATE users SET subscription_plan = ?, updated_at = ? WHERE user_id = ?"
-          ).bind(specialPlan, new Date().toISOString(), user.id).run();
-          
-          console.log(`✅ [Account Upgrade] Successfully upgraded ${user.email} from ${currentPlan.toUpperCase()} to ${specialPlan.toUpperCase()} via registration code: ${registrationCode}`);
-          
-          // Verify the upgrade
-          const { results: verifyUpgrade } = await c.env.DB.prepare(
+            `INSERT INTO users (user_id, email, name, google_user_id, profile_picture_url, signup_source, subscription_plan, last_login_at)
+         VALUES (?, ?, ?, ?, ?, 'google-oauth', ?, ?)`
+          ).bind(
+            user.id,
+            user.email,
+            user.google_user_data?.name || null,
+            user.google_user_data?.sub || null,
+            user.google_user_data?.picture || null,
+            subscriptionPlan,
+            new Date().toISOString()
+          ).run();
+        } catch (dbError: any) {
+          console.error("❌ [Database] Error creating user:", dbError);
+          return c.json({
+            error: "Database error",
+            message: dbError.message || "Failed to create user in database",
+            details: "Make sure database tables exist. Run 'npm run migrate' to create tables."
+          }, 500);
+        }
+
+        console.log(`✅ [Database] Successfully created user record for: ${user.id} with plan: ${subscriptionPlan.toUpperCase()}`);
+
+        // Verify the insert worked
+        const { results: verifyResults } = await c.env.DB.prepare(
+          "SELECT user_id, email, subscription_plan FROM users WHERE user_id = ?"
+        ).bind(user.id).all();
+
+        if (verifyResults.length > 0) {
+          const savedUser = verifyResults[0] as any;
+          console.log(`✅ [Database] Verification - User saved with subscription_plan: ${savedUser.subscription_plan}`);
+        } else {
+          console.error(`❌ [Database] ERROR: User was not found after insert!`);
+        }
+
+        // Log special registration if applicable
+        if (specialPlan) {
+          console.log(`🎁 [Special Registration] New user ${user.email} registered with ${specialPlan.toUpperCase()} plan via registration link`);
+        }
+      } else {
+        console.log(`💾 [Database] User already exists: ${user.id}`);
+
+        // Existing user - update last login
+        await c.env.DB.prepare(
+          "UPDATE users SET last_login_at = ?, updated_at = ? WHERE user_id = ?"
+        ).bind(new Date().toISOString(), new Date().toISOString(), user.id).run();
+        console.log(`💾 [Database] Updated last_login_at for: ${user.id}`);
+
+        // If existing user has a special plan from registration code, upgrade their account
+        if (specialPlan && registrationCode) {
+          console.log(`🔍 [Account Upgrade] Checking if upgrade needed for existing user: ${user.email}`);
+
+          // Get current plan
+          const { results: currentUserData } = await c.env.DB.prepare(
             "SELECT subscription_plan FROM users WHERE user_id = ?"
           ).bind(user.id).all();
-          
-          if (verifyUpgrade.length > 0) {
-            const updatedPlan = (verifyUpgrade[0] as any).subscription_plan;
-            console.log(`✅ [Account Upgrade] Verification - User now has plan: ${updatedPlan}`);
-          }
-        } else {
-          console.log(`ℹ️ [Account Upgrade] User ${user.email} already has ${currentPlan.toUpperCase()} plan (level ${currentLevel}) which is equal or higher than ${specialPlan.toUpperCase()} (level ${newLevel})`);
-        }
-      } else if (specialPlan) {
-        console.log(`ℹ️ [Account Upgrade] Special plan provided but no registration code - not upgrading existing user`);
-      }
-    }
 
-    // Sync to CRM platforms for ANY first-time sign-up (new user OR not in waitlist yet)
-    if (isNewUser || notInWaitlist) {
-      const systemeKey = c.env.SYSTEME_IO_API_KEY;
-      
-      // Try Systeme.io integration
-      if (systemeKey) {
-        try {
-          console.log("📤 [Systeme.io] Syncing user to Systeme.io:", user.email);
-          await integrateWithSystemeIO(systemeKey, {
-            email: user.email,
-            name: user.google_user_data?.name || "",
-            source: "google-oauth-registration",
-            utm_data: {
-              source: null,
-              medium: null,
-              campaign: null,
+          const currentPlan = currentUserData.length > 0 ? (currentUserData[0] as any).subscription_plan : 'free';
+          console.log(`🔍 [Account Upgrade] Current plan: ${currentPlan}, Target plan: ${specialPlan}`);
+
+          // Only upgrade if not already on this plan or higher
+          const planHierarchy: Record<string, number> = { 'free': 0, 'pro': 1, 'enterprise': 2 };
+          const currentLevel = planHierarchy[currentPlan] || 0;
+          const newLevel = planHierarchy[specialPlan] || 0;
+
+          if (newLevel > currentLevel) {
+            console.log(`⬆️ [Account Upgrade] Upgrading from ${currentPlan.toUpperCase()} (level ${currentLevel}) to ${specialPlan.toUpperCase()} (level ${newLevel})`);
+
+            await c.env.DB.prepare(
+              "UPDATE users SET subscription_plan = ?, updated_at = ? WHERE user_id = ?"
+            ).bind(specialPlan, new Date().toISOString(), user.id).run();
+
+            console.log(`✅ [Account Upgrade] Successfully upgraded ${user.email} from ${currentPlan.toUpperCase()} to ${specialPlan.toUpperCase()} via registration code: ${registrationCode}`);
+
+            // Verify the upgrade
+            const { results: verifyUpgrade } = await c.env.DB.prepare(
+              "SELECT subscription_plan FROM users WHERE user_id = ?"
+            ).bind(user.id).all();
+
+            if (verifyUpgrade.length > 0) {
+              const updatedPlan = (verifyUpgrade[0] as any).subscription_plan;
+              console.log(`✅ [Account Upgrade] Verification - User now has plan: ${updatedPlan}`);
             }
-          });
-          console.log("✅ [Systeme.io] Sync successful:", user.email);
-        } catch (error) {
-          console.error("❌ [Systeme.io] Sync FAILED for:", user.email);
-          console.error("❌ [Systeme.io] Error:", error instanceof Error ? error.message : String(error));
+          } else {
+            console.log(`ℹ️ [Account Upgrade] User ${user.email} already has ${currentPlan.toUpperCase()} plan (level ${currentLevel}) which is equal or higher than ${specialPlan.toUpperCase()} (level ${newLevel})`);
+          }
+        } else if (specialPlan) {
+          console.log(`ℹ️ [Account Upgrade] Special plan provided but no registration code - not upgrading existing user`);
         }
       }
 
-      // Try AWeber integration
-      const { addAWeberSubscriber } = await import("./aweber.js");
-      try {
-        console.log("📤 [AWeber] Syncing user to AWeber:", user.email);
-        const aweberResult = await addAWeberSubscriber(c.env, {
-          email: user.email,
-          name: user.google_user_data?.name || undefined,
-          tags: ["google-oauth-registration", "focusflow-user"],
-          ad_tracking: "focusflow-google-oauth",
-        });
-        
-        if (aweberResult.success) {
-          console.log("✅ [AWeber] Sync successful:", user.email);
-        } else {
-          console.warn("⚠️ [AWeber] Sync completed with issues:", aweberResult.error);
+      // Sync to CRM platforms for ANY first-time sign-up (new user OR not in waitlist yet)
+      if (isNewUser || notInWaitlist) {
+        const systemeKey = c.env.SYSTEME_IO_API_KEY;
+
+        // Try Systeme.io integration
+        if (systemeKey) {
+          try {
+            console.log("📤 [Systeme.io] Syncing user to Systeme.io:", user.email);
+            await integrateWithSystemeIO(systemeKey, {
+              email: user.email,
+              name: user.google_user_data?.name || "",
+              source: "google-oauth-registration",
+              utm_data: {
+                source: null,
+                medium: null,
+                campaign: null,
+              }
+            });
+            console.log("✅ [Systeme.io] Sync successful:", user.email);
+          } catch (error) {
+            console.error("❌ [Systeme.io] Sync FAILED for:", user.email);
+            console.error("❌ [Systeme.io] Error:", error instanceof Error ? error.message : String(error));
+          }
         }
-      } catch (error) {
-        console.error("❌ [AWeber] Sync FAILED for:", user.email);
-        console.error("❌ [AWeber] Error:", error instanceof Error ? error.message : String(error));
+
+        // Try AWeber integration
+        const { addAWeberSubscriber } = await import("./aweber.js");
+        try {
+          console.log("📤 [AWeber] Syncing user to AWeber:", user.email);
+          const aweberResult = await addAWeberSubscriber(c.env, {
+            email: user.email,
+            name: user.google_user_data?.name || undefined,
+            tags: ["google-oauth-registration", "focusflow-user"],
+            ad_tracking: "focusflow-google-oauth",
+          });
+
+          if (aweberResult.success) {
+            console.log("✅ [AWeber] Sync successful:", user.email);
+          } else {
+            console.warn("⚠️ [AWeber] Sync completed with issues:", aweberResult.error);
+          }
+        } catch (error) {
+          console.error("❌ [AWeber] Sync FAILED for:", user.email);
+          console.error("❌ [AWeber] Error:", error instanceof Error ? error.message : String(error));
+        }
+
+        // Record in email_signups table for tracking
+        if (notInWaitlist) {
+          try {
+            await c.env.DB.prepare(
+              `INSERT INTO email_signups (email, name, signup_source, marketing_consent, status)
+             VALUES (?, ?, 'google-oauth', 1, 'active')`
+            ).bind(user.email, user.google_user_data?.name || "").run();
+            console.log("💾 [Database] Added to email_signups:", user.email);
+          } catch (dbError) {
+            console.error("❌ [Database] Failed to record signup:", dbError);
+          }
+        }
+      } else {
+        console.log("ℹ️ [CRM] User already synced, skipping:", user.email);
       }
-      
-      // Record in email_signups table for tracking
-      if (notInWaitlist) {
+
+      // Create default user settings for new users
+      if (settingsCheck.length === 0) {
         try {
           await c.env.DB.prepare(
-            `INSERT INTO email_signups (email, name, signup_source, marketing_consent, status)
-             VALUES (?, ?, 'google-oauth', 1, 'active')`
-          ).bind(user.email, user.google_user_data?.name || "").run();
-          console.log("💾 [Database] Added to email_signups:", user.email);
-        } catch (dbError) {
-          console.error("❌ [Database] Failed to record signup:", dbError);
+            "INSERT INTO user_settings (user_id) VALUES (?)"
+          ).bind(user.id).run();
+          console.log("💾 [Database] Created user_settings for:", user.id);
+        } catch (error) {
+          console.error("❌ [Database] Failed to create user settings:", error);
         }
       }
-    } else {
-      console.log("ℹ️ [CRM] User already synced, skipping:", user.email);
     }
 
-    // Create default user settings for new users
-    if (settingsCheck.length === 0) {
-      try {
-        await c.env.DB.prepare(
-          "INSERT INTO user_settings (user_id) VALUES (?)"
-        ).bind(user.id).run();
-        console.log("💾 [Database] Created user_settings for:", user.id);
-      } catch (error) {
-        console.error("❌ [Database] Failed to create user settings:", error);
-      }
-    }
-  }
-
-  return c.json({ success: true }, 200);
+    return c.json({ success: true }, 200);
   } catch (error: any) {
     console.error("❌ [Sessions] Unhandled error in /api/sessions:", error);
     console.error("❌ [Sessions] Error stack:", error?.stack);
@@ -862,8 +871,8 @@ app.post("/api/sessions", async (c) => {
       name: error?.name,
       code: error?.code
     });
-    return c.json({ 
-      error: "Session creation failed", 
+    return c.json({
+      error: "Session creation failed",
       message: error?.message || "Unknown error",
       details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
     }, 500);
@@ -896,7 +905,7 @@ const AdminLoginSchema = z.object({
 
 app.post("/api/admin/login", zValidator("json", AdminLoginSchema), async (c) => {
   const { username, password } = c.req.valid("json");
-  
+
   // Trim username to handle any accidental spaces
   const trimmedUsername = username.trim();
 
@@ -909,10 +918,10 @@ app.post("/api/admin/login", zValidator("json", AdminLoginSchema), async (c) => 
   }
 
   const admin = results[0] as any;
-  
+
   // For demo purposes, check if password is "admin123" or verify hash
   const isValidPassword = password === "admin123" || await bcrypt.compare(password, admin.password_hash);
-  
+
   if (!isValidPassword) {
     return c.json({ error: "Invalid credentials" }, 401);
   }
@@ -933,13 +942,13 @@ app.post("/api/admin/login", zValidator("json", AdminLoginSchema), async (c) => 
     maxAge: 24 * 60 * 60, // 24 hours
   });
 
-  return c.json({ 
-    success: true, 
-    admin: { 
-      id: admin.id, 
-      username: admin.username, 
+  return c.json({
+    success: true,
+    admin: {
+      id: admin.id,
+      username: admin.username,
       email: admin.email,
-      is_super_admin: admin.is_super_admin 
+      is_super_admin: admin.is_super_admin
     },
     token: sessionToken
   });
@@ -947,7 +956,7 @@ app.post("/api/admin/login", zValidator("json", AdminLoginSchema), async (c) => 
 
 app.post("/api/admin/logout", adminMiddleware, async (c) => {
   const token = c.req.header("Authorization")?.replace("Bearer ", "") || getCookie(c, "admin_session_token");
-  
+
   if (token) {
     await c.env.DB.prepare("DELETE FROM admin_sessions WHERE session_token = ?").bind(token).run();
   }
@@ -1014,15 +1023,15 @@ app.get("/api/admin/users", adminMiddleware, async (c) => {
   try {
     const pageParam = c.req.query("page");
     const limitParam = c.req.query("limit");
-    
+
     let page = parseInt(pageParam || "1");
     let limit = parseInt(limitParam || "20");
-    
+
     // Safety check for NaN or invalid values
     if (isNaN(page) || page < 1) page = 1;
     if (isNaN(limit) || limit < 1) limit = 20;
     if (limit > 100) limit = 100; // Cap limit at 100 for performance
-    
+
     const offset = (page - 1) * limit;
 
     // Get users with their stats from users table - using subqueries to avoid JOIN issues
@@ -1280,7 +1289,7 @@ app.post("/api/admin/registration-codes", adminMiddleware, async (c) => {
        VALUES (?, ?, ?, ?, ?, ?)`
     ).bind(code, planId, maxUses, expiresAt, admin.username, notes).run();
 
-    return c.json({ 
+    return c.json({
       success: true,
       code,
       plan_id: planId,
@@ -1347,8 +1356,8 @@ app.get("/api/registration-codes/:code/validate", async (c) => {
     return c.json({ valid: false, error: "Code has reached maximum uses" }, 400);
   }
 
-  return c.json({ 
-    valid: true, 
+  return c.json({
+    valid: true,
     plan_id: regCode.plan_id,
     uses_remaining: regCode.max_uses ? regCode.max_uses - regCode.current_uses : null
   });
@@ -1380,8 +1389,8 @@ app.patch("/api/admin/users/:userId/plan", adminMiddleware, async (c) => {
       "UPDATE users SET subscription_plan = ?, updated_at = ? WHERE user_id = ?"
     ).bind(planId, new Date().toISOString(), userId).run();
 
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       message: `User plan updated to ${planId}`,
       user_id: userId,
       plan_id: planId
@@ -1505,10 +1514,10 @@ app.post("/api/tasks", authMiddleware, zValidator("json", CreateTaskSchema), asy
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)`
     )
       .bind(
-        user!.id, 
-        data.title, 
-        data.description || null, 
-        data.priority || 0, 
+        user!.id,
+        data.title,
+        data.description || null,
+        data.priority || 0,
         data.estimated_minutes || null,
         data.project || null,
         data.due_date || null,
@@ -1528,7 +1537,7 @@ app.post("/api/tasks", authMiddleware, zValidator("json", CreateTaskSchema), asy
 
     // Get the inserted ID - try both last_row_id and last_insert_rowid
     const insertedId = result.meta.last_row_id || result.meta.last_insert_rowid;
-    
+
     if (!insertedId) {
       console.error("❌ [Tasks] No insert ID returned from database");
       console.error("❌ [Tasks] Full result meta:", JSON.stringify(result.meta, null, 2));
@@ -1545,12 +1554,12 @@ app.post("/api/tasks", authMiddleware, zValidator("json", CreateTaskSchema), asy
       const { results: fallbackResults } = await c.env.DB.prepare(
         "SELECT * FROM tasks WHERE user_id = ? ORDER BY id DESC LIMIT 1"
       ).bind(user!.id).all();
-      
+
       if (fallbackResults && fallbackResults.length > 0) {
         console.log("✅ [Tasks] Found task using fallback query");
         return c.json(fallbackResults[0], 201);
       }
-      
+
       throw new Error("Task was created but could not be retrieved");
     }
 
@@ -1565,8 +1574,8 @@ app.post("/api/tasks", authMiddleware, zValidator("json", CreateTaskSchema), asy
       errno: error?.errno,
       sqlState: error?.sqlState
     });
-    return c.json({ 
-      error: "Failed to create task", 
+    return c.json({
+      error: "Failed to create task",
       message: error?.message || "Unknown error occurred",
       details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
     }, 500);
@@ -1641,7 +1650,7 @@ app.patch("/api/tasks/:id", authMiddleware, zValidator("json", UpdateTaskSchema)
   if (data.repeat !== undefined) {
     updates.push("`repeat` = ?");
     values.push(data.repeat);
-    
+
     // Recalculate next occurrence if repeat pattern changed
     if (data.repeat !== "none") {
       const task = existing[0] as any;
@@ -1677,10 +1686,10 @@ app.patch("/api/tasks/:id", authMiddleware, zValidator("json", UpdateTaskSchema)
     console.error("[Tasks] Error updating task:", error);
     console.error("[Tasks] SQL:", `UPDATE tasks SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`);
     console.error("[Tasks] Values:", values);
-    return c.json({ 
-      error: "Failed to update task", 
+    return c.json({
+      error: "Failed to update task",
       message: error.message,
-      details: error.sqlMessage || error.code 
+      details: error.sqlMessage || error.code
     }, 500);
   }
 
@@ -1921,7 +1930,7 @@ app.patch("/api/focus-sessions/:id", authMiddleware, zValidator("json", UpdateFo
     console.error("❌ [Focus Session] Session not found:", id);
     return c.json({ error: "Session not found" }, 404);
   }
-  
+
   // Verify user owns this session
   const sessionData = existing[0] as any;
   if (sessionData.user_id !== user!.id) {
@@ -2158,7 +2167,7 @@ app.get("/api/user/subscription", authMiddleware, async (c) => {
 
     const planId = results.length > 0 ? (results[0] as any).subscription_plan || 'free' : 'free';
 
-    return c.json({ 
+    return c.json({
       plan_id: planId,
       is_pro: planId === 'pro',
       is_enterprise: planId === 'enterprise',
@@ -2166,7 +2175,7 @@ app.get("/api/user/subscription", authMiddleware, async (c) => {
     });
   } catch (error) {
     console.error("Failed to fetch subscription plan:", error);
-    return c.json({ 
+    return c.json({
       plan_id: 'free',
       is_pro: false,
       is_enterprise: false,
@@ -2259,16 +2268,16 @@ app.get("/api/dashboard-stats", authMiddleware, async (c) => {
       WHERE user_id = ? AND session_type = 'focus' AND start_time >= ?
     `).bind(user!.id, weekAgo).all();
 
-  // Completed tasks today
-  const { results: completedResults } = await c.env.DB.prepare(`
+    // Completed tasks today
+    const { results: completedResults } = await c.env.DB.prepare(`
     SELECT COUNT(*) as count
     FROM tasks
     WHERE user_id = ? AND is_completed = 1 AND completed_at >= ?
   `).bind(user!.id, todayStart).all();
 
-  // Average session length (last 30 days)
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { results: avgResults } = await c.env.DB.prepare(`
+    // Average session length (last 30 days)
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { results: avgResults } = await c.env.DB.prepare(`
     SELECT AVG(duration_minutes) as avg_minutes
     FROM focus_sessions
     WHERE user_id = ? AND session_type = 'focus' AND end_time IS NOT NULL AND start_time >= ?
@@ -2290,7 +2299,7 @@ app.get("/api/dashboard-stats", authMiddleware, async (c) => {
 
     for (const row of streakDays as any[]) {
       const currentDate = new Date(row.date as string);
-      
+
       if (lastDate === null) {
         currentStreak = 1;
       } else {
@@ -2302,7 +2311,7 @@ app.get("/api/dashboard-stats", authMiddleware, async (c) => {
           currentStreak = 1;
         }
       }
-      
+
       lastDate = currentDate;
     }
     longestStreak = Math.max(longestStreak, currentStreak);
@@ -2316,9 +2325,9 @@ app.get("/api/dashboard-stats", authMiddleware, async (c) => {
     });
   } catch (error: any) {
     console.error("Error in dashboard-stats:", error);
-    return c.json({ 
-      error: "Failed to fetch dashboard stats", 
-      message: error?.message 
+    return c.json({
+      error: "Failed to fetch dashboard stats",
+      message: error?.message
     }, 500);
   }
 });
@@ -2393,7 +2402,7 @@ app.get("/api/analytics/time-comparison", authMiddleware, async (c) => {
   // Calculate date range
   let fromDate: string | null = null;
   const now = new Date();
-  
+
   if (range === "week") {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     fromDate = weekAgo.toISOString();
@@ -2422,7 +2431,7 @@ app.get("/api/analytics/time-comparison", authMiddleware, async (c) => {
       AND estimated_minutes > 0
       AND actual_minutes > 0
   `;
-  
+
   const params: any[] = [user!.id];
 
   if (fromDate) {
@@ -2474,11 +2483,11 @@ app.get("/api/analytics/time-comparison", authMiddleware, async (c) => {
     });
 
     stats.avg_estimation_accuracy = totalAccuracy / taskData.length;
-    stats.avg_overestimation_minutes = overestimationCount > 0 
-      ? overestimationSum / overestimationCount 
+    stats.avg_overestimation_minutes = overestimationCount > 0
+      ? overestimationSum / overestimationCount
       : 0;
-    stats.avg_underestimation_minutes = underestimationCount > 0 
-      ? underestimationSum / underestimationCount 
+    stats.avg_underestimation_minutes = underestimationCount > 0
+      ? underestimationSum / underestimationCount
       : 0;
   }
 
@@ -2558,7 +2567,7 @@ app.get("/api/goals", authMiddleware, async (c) => {
           HAVING total_minutes >= 25
           ORDER BY date ASC
         `).bind(user!.id, goal.start_date, goal.end_date).all();
-        
+
         let streak = 0;
         let expectedDate = new Date(goal.start_date);
         for (const row of streakResults) {
@@ -2747,7 +2756,7 @@ app.post("/api/email-signup", zValidator("json", EmailSignupSchema), async (c) =
     const systemeKey = c.env.SYSTEME_IO_API_KEY;
     let systemeResult = null;
     let aweberResult = null;
-    
+
     // Try Systeme.io integration
     if (systemeKey) {
       try {
@@ -2775,7 +2784,7 @@ app.post("/api/email-signup", zValidator("json", EmailSignupSchema), async (c) =
         },
         ad_tracking: `focusflow-${data.signup_source}`,
       });
-      
+
       if (aweberResult.success) {
         console.log("✅ [Email Signup] Successfully synced to AWeber:", data.email);
       } else {
@@ -2786,8 +2795,8 @@ app.post("/api/email-signup", zValidator("json", EmailSignupSchema), async (c) =
       console.error("❌ [Email Signup] Error:", error instanceof Error ? error.message : String(error));
     }
 
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       message: "Successfully added to waitlist",
       debug: {
         saved_to_database: true,
@@ -2836,11 +2845,11 @@ app.get("/api/admin/email-signups", adminMiddleware, async (c) => {
 // Test endpoint for Systeme.io integration (admin only for security)
 app.post("/api/test-systeme", adminMiddleware, async (c) => {
   const systemeKey = c.env.SYSTEME_IO_API_KEY;
-  
+
   if (!systemeKey) {
-    return c.json({ 
-      success: false, 
-      error: "SYSTEME_IO_API_KEY not configured" 
+    return c.json({
+      success: false,
+      error: "SYSTEME_IO_API_KEY not configured"
     }, 500);
   }
 
@@ -2848,7 +2857,7 @@ app.post("/api/test-systeme", adminMiddleware, async (c) => {
     // Parse email from request body if provided
     const body = await c.req.json().catch(() => ({}));
     const testEmail = body.email || "test@gmail.com";
-    
+
     const testData = {
       email: testEmail,
       name: body.name || "Test User",
@@ -2862,16 +2871,16 @@ app.post("/api/test-systeme", adminMiddleware, async (c) => {
 
     console.log("🧪 [Test] Testing Systeme.io integration with:", testEmail);
     const result = await integrateWithSystemeIO(systemeKey, testData);
-    
-    return c.json({ 
-      success: true, 
+
+    return c.json({
+      success: true,
       message: "Systeme.io integration test successful",
-      result 
+      result
     });
   } catch (error) {
     console.error("🧪 [Test] Systeme.io test failed:", error);
-    return c.json({ 
-      success: false, 
+    return c.json({
+      success: false,
       error: error instanceof Error ? error.message : "Unknown error",
       note: "422 errors are expected for invalid email addresses like test@example.com. Use real email domains for testing."
     }, 500);
@@ -2881,12 +2890,12 @@ app.post("/api/test-systeme", adminMiddleware, async (c) => {
 // Test endpoint - create a test session
 app.post("/api/test/create-session", authMiddleware, async (c) => {
   const user = c.get("user");
-  
+
   console.log("🧪 [Test] Creating test session for user:", user!.id);
-  
+
   const now = new Date();
   const thirtyMinsAgo = new Date(now.getTime() - 30 * 60 * 1000);
-  
+
   try {
     const result = await c.env.DB.prepare(
       `INSERT INTO focus_sessions (user_id, start_time, end_time, duration_minutes, session_type, timer_mode)
@@ -2897,19 +2906,19 @@ app.post("/api/test/create-session", authMiddleware, async (c) => {
       now.toISOString(),
       30
     ).run();
-    
+
     console.log("✅ [Test] Test session created with ID:", result.meta.last_row_id);
-    
-    return c.json({ 
-      success: true, 
+
+    return c.json({
+      success: true,
       session_id: result.meta.last_row_id,
       message: "Test session created successfully"
     });
   } catch (error) {
     console.error("❌ [Test] Failed to create test session:", error);
-    return c.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : "Unknown error" 
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error"
     }, 500);
   }
 });
@@ -3133,7 +3142,7 @@ app.get("/api/focus-distractions/analytics", authMiddleware, async (c) => {
 // Google Calendar Integration Endpoints
 app.get("/api/calendar/auth-url", authMiddleware, async (c) => {
   const clientId = c.env.GOOGLE_CALENDAR_CLIENT_ID;
-  
+
   if (!clientId) {
     return c.json({ error: "Google Calendar not configured" }, 500);
   }
@@ -3159,7 +3168,7 @@ app.get("/api/calendar/callback", async (c) => {
   const code = c.req.query("code");
   const error = c.req.query("error");
   const state = c.req.query("state");
-  
+
   // Simple redirect page that works immediately
   const html = `
 <!DOCTYPE html>
@@ -3230,7 +3239,7 @@ app.get("/api/calendar/callback", async (c) => {
   </script>
 </body>
 </html>`;
-  
+
   // Process the OAuth in the background (don't wait for completion)
   if (code && !error) {
     c.executionCtx.waitUntil(
@@ -3241,17 +3250,17 @@ app.get("/api/calendar/callback", async (c) => {
             console.error("❌ [Calendar Callback] No session token");
             return;
           }
-          
+
           const user = await getCurrentUserFromToken(sessionToken, c.env.DB);
-          
+
           if (!user) {
             console.error("❌ [Calendar Callback] No user found");
             return;
           }
-          
+
           console.log("📅 [Calendar Callback] Processing OAuth for user:", user.id);
 
-  const clientId = c.env.GOOGLE_CALENDAR_CLIENT_ID;
+          const clientId = c.env.GOOGLE_CALENDAR_CLIENT_ID;
           const clientSecret = c.env.GOOGLE_CALENDAR_CLIENT_SECRET;
           const redirectUri = `${new URL(c.req.url).origin}/api/calendar/callback`;
 
@@ -3316,7 +3325,7 @@ app.get("/api/calendar/callback", async (c) => {
       })()
     );
   }
-  
+
   return new Response(html, {
     status: 200,
     headers: { "Content-Type": "text/html; charset=utf-8" }
@@ -3336,10 +3345,10 @@ app.get("/api/calendar/status", authMiddleware, async (c) => {
     return c.json({ connected: false });
   }
 
-  return c.json({ 
-    connected: true, 
+  return c.json({
+    connected: true,
     provider: results[0].provider,
-    connectedAt: results[0].created_at 
+    connectedAt: results[0].created_at
   });
 });
 
@@ -3419,7 +3428,7 @@ app.get("/api/calendar/events", authMiddleware, async (c) => {
   const to = c.req.query("to");
 
   const accessToken = await refreshCalendarToken(c.env, user!.id);
-  
+
   if (!accessToken) {
     return c.json({ error: "Calendar not connected" }, 401);
   }
@@ -3494,7 +3503,7 @@ app.post("/api/recurring-tasks/process", authMiddleware, async (c) => {
     for (const task of results as any[]) {
       // Create new task instance
       const newDueDate = task.next_occurrence_date;
-      
+
       await c.env.DB.prepare(`
         INSERT INTO tasks (
           user_id, title, description, priority, estimated_minutes, 
@@ -3598,7 +3607,7 @@ async function mergeContiguousSessions(db: D1Database, userId: string, taskId: n
   for (let i = 1; i < sessionList.length; i++) {
     const prev = sessionList[i - 1];
     const current = sessionList[i];
-    
+
     const prevEnd = new Date(prev.end_time).getTime();
     const currentStart = new Date(current.start_time).getTime();
     const gap = currentStart - prevEnd;
@@ -3623,7 +3632,7 @@ async function mergeContiguousSessions(db: D1Database, userId: string, taskId: n
     const firstSession = group[0];
     const lastSession = group[group.length - 1];
     const totalDuration = group.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
-    
+
     // Collect all notes
     const allNotes = group.map(s => s.notes).filter(Boolean).join(' | ');
 
@@ -3678,13 +3687,13 @@ async function syncToNotionIfEnabled(db: D1Database, userId: string, task: any) 
   if (results.length === 0) return;
 
   const settings = results[0] as any;
-  
+
   if (settings.notion_sync_enabled === 1 && settings.notion_database_id && settings.notion_access_token) {
     console.log("📝 [Notion Sync] Starting sync for task:", task.id);
-    
+
     try {
       const result = await syncTaskToNotion(task, settings.notion_access_token, settings.notion_database_id);
-      
+
       if (result.success) {
         console.log("✅ [Notion Sync] Successfully synced task to Notion:", task.title);
       } else {
@@ -3700,7 +3709,7 @@ async function syncToNotionIfEnabled(db: D1Database, userId: string, task: any) 
 async function integrateWithSystemeIO(apiKey: string, signupData: any) {
   // Build tags array with source information
   const tags = ["focusflow-waitlist", signupData.source].filter(Boolean);
-  
+
   // Add UTM data as tags if available
   if (signupData.utm_data?.source) tags.push(`utm_source:${signupData.utm_data.source}`);
   if (signupData.utm_data?.medium) tags.push(`utm_medium:${signupData.utm_data.medium}`);

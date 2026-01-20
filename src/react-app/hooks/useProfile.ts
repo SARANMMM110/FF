@@ -34,7 +34,7 @@ export function useProfile() {
     try {
       setLoading(true);
       const response = await apiFetch("api/profile");
-      
+
       if (response.ok) {
         const profileData = await response.json();
         setProfile(profileData);
