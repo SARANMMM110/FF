@@ -12,7 +12,7 @@ import { config } from 'dotenv';
 // Load environment variables from .env file
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-config({ path: path.join(__dirname, '../../.env') });
+config({ path: path.resolve(process.cwd(), '.env') });
 
 // Get environment variables
 const getEnv = async () => {
