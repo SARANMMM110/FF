@@ -1225,7 +1225,8 @@ app.patch("/api/admin/tasks/:id", adminMiddleware, zValidator("json", AdminUpdat
   }
   if (data.due_date !== undefined) {
     updates.push("due_date = ?");
-    values.push(data.due_date);
+    // Convert empty string to null for database compatibility
+    values.push(data.due_date === "" ? null : data.due_date);
   }
 
   updates.push("updated_at = ?");
