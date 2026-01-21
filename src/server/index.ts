@@ -1,4 +1,4 @@
-
+import 'dotenv/config';
 import { serve } from '@hono/node-server';
 import app from '../worker/index.js';
 import { NodeD1Database } from './adapters/database.js';
