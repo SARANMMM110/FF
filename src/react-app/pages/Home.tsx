@@ -59,6 +59,15 @@ export default function Home() {
       const { apiFetch } = await import('@/react-app/utils/api');
       const response = await apiFetch(endpoint);
       
+      // Check if response is actually JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error("Unexpected response type:", contentType);
+        console.error("Response body:", text.substring(0, 200));
+        throw new Error(`Backend API returned ${contentType || 'unknown type'} instead of JSON. The backend server may not be running or the API route is not configured correctly.`);
+      }
+      
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to get OAuth URL');
@@ -72,9 +81,10 @@ export default function Home() {
       }
       
       window.location.href = data.redirectUrl;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to initiate Google sign-in:", error);
-      alert("Failed to start sign-in. Please make sure the backend server is running on port 3000.");
+      const errorMessage = error.message || 'Failed to start sign-in. Please make sure the backend server is running and the API routes are properly configured.';
+      alert(errorMessage);
     }
   };
 
