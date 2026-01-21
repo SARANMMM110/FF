@@ -1,3 +1,4 @@
+
 import { serve } from '@hono/node-server';
 import app from '../worker/index.js';
 import { NodeD1Database } from './adapters/database.js';
@@ -18,12 +19,16 @@ const getEnv = async () => {
   // Use MySQL if DB_TYPE is 'mysql', PostgreSQL if DATABASE_URL is provided, otherwise use SQLite
   let db: NodeD1Database | PostgresD1Database | MysqlD1Database;
   
-  if (process.env.DB_TYPE === 'mysql') {
+  if (process.env.DB_TYPE === 'mysql' || (process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_NAME)) {
+    if (!process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
+      throw new Error('❌ MySQL environment variables are missing');
+    }
+    
     db = new MysqlD1Database({
       host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || '',
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
       port: parseInt(process.env.DB_PORT || '3306', 10),
       ssl: process.env.DB_SSL === 'true',
     });
