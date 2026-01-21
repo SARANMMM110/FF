@@ -101,8 +101,8 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
       console.log("📤 Syncing with API...");
       await onUpdate(task.id, updates);
       console.log("✅ API sync successful");
-      // Clear optimistic state - let props take over
-      setOptimisticTasks([]);
+      // Refresh the page to ensure data is up to date
+      window.location.reload();
     } catch (error) {
       console.error("❌ API sync failed:", error);
       // Revert optimistic update on error
