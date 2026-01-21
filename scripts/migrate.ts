@@ -300,7 +300,7 @@ const migrationsDir = path.join(__dirname, '../migrations');
         }
       }
       
-      // For MySQL, handle CREATE INDEX statements separately to avoid duplicate key errors
+      // For MySQL, handle CREATE INDEX and ALTER TABLE ADD COLUMN statements separately to avoid duplicate errors
       if (isMySQL) {
         // Split SQL into individual statements
         const statements = sql.split(';').filter(s => s.trim());
@@ -310,6 +310,9 @@ const migrationsDir = path.join(__dirname, '../migrations');
           
           // Check if this is a CREATE INDEX statement
           const indexMatch = statement.match(/CREATE\s+INDEX\s+(\w+)\s+ON/i);
+          
+          // Check if this is an ALTER TABLE ADD COLUMN statement
+          const alterTableMatch = statement.match(/ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)/i);
           
           if (indexMatch) {
             const indexName = indexMatch[1];
@@ -325,8 +328,23 @@ const migrationsDir = path.join(__dirname, '../migrations');
               }
               throw execError;
             }
+          } else if (alterTableMatch) {
+            const tableName = alterTableMatch[1];
+            const columnName = alterTableMatch[2];
+            
+            // Try to execute, but catch duplicate column errors
+            try {
+              await db.exec(statement.trim());
+            } catch (execError: any) {
+              // For ALTER TABLE ADD COLUMN, ignore duplicate column errors
+              if (execError.code === 'ER_DUP_FIELDNAME' || execError.errno === 1060) {
+                console.log(`  ⏭️  Column ${columnName} already exists in ${tableName}, skipping...`);
+                continue;
+              }
+              throw execError;
+            }
           } else {
-            // For non-index statements, execute normally
+            // For other statements (including prepared statements), execute normally
             await db.exec(statement.trim());
           }
         }

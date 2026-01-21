@@ -1226,7 +1226,7 @@ app.patch("/api/admin/tasks/:id", adminMiddleware, zValidator("json", AdminUpdat
   if (data.due_date !== undefined) {
     updates.push("due_date = ?");
     // Convert empty string to null for database compatibility
-    values.push(data.due_date === "" ? null : data.due_date);
+    values.push(data.due_date && typeof data.due_date === 'string' && data.due_date.trim() !== '' ? data.due_date : null);
   }
 
   updates.push("updated_at = ?");
@@ -1521,7 +1521,7 @@ app.post("/api/tasks", authMiddleware, zValidator("json", CreateTaskSchema), asy
         data.priority || 0,
         data.estimated_minutes || null,
         data.project || null,
-        data.due_date || null,
+        data.due_date && typeof data.due_date === 'string' && data.due_date.trim() !== '' ? data.due_date : null,
         tagsJson,
         repeat,
         repeatDetail,
@@ -1643,7 +1643,7 @@ app.patch("/api/tasks/:id", authMiddleware, zValidator("json", UpdateTaskSchema)
   if (data.due_date !== undefined) {
     updates.push("due_date = ?");
     // Convert empty string to null for database compatibility
-    values.push(data.due_date === "" ? null : data.due_date);
+    values.push(data.due_date && typeof data.due_date === 'string' && data.due_date.trim() !== '' ? data.due_date : null);
   }
   if (data.tags !== undefined) {
     updates.push("tags = ?");
