@@ -67,7 +67,7 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
     if (column === "todo") {
       console.log("➡️ Moving to To Do");
       updates = { 
-        due_date: "",
+        due_date: null,
         is_completed: false 
       };
     } else if (column === "scheduled") {

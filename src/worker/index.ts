@@ -1641,7 +1641,8 @@ app.patch("/api/tasks/:id", authMiddleware, zValidator("json", UpdateTaskSchema)
   }
   if (data.due_date !== undefined) {
     updates.push("due_date = ?");
-    values.push(data.due_date);
+    // Convert empty string to null for database compatibility
+    values.push(data.due_date === "" ? null : data.due_date);
   }
   if (data.tags !== undefined) {
     updates.push("tags = ?");
