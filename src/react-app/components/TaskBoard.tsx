@@ -85,29 +85,42 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
     }
 
     // OPTIMISTIC UPDATE: Update UI immediately
-    const updatedTask = { ...task, ...updates, _optimistic: true };
-    const newOptimisticTasks = tasks.map(t => 
-      t.id === draggedTaskId ? updatedTask : t
-    );
-    setOptimisticTasks(newOptimisticTasks);
+    const updatedTask = {
+      ...task,
+      ...updates,
+      _optimistic: true,
+    };
+
+    setOptimisticTasks(prevTasks => {
+      const tasksToUpdate = prevTasks.length > 0 ? prevTasks : tasks;
+      return tasksToUpdate.map(t =>
+        t.id === draggedTaskId ? updatedTask : t
+      );
+    });
+
     console.log("⚡ Optimistic update applied");
 
-    // Clear drag state immediately for instant feedback
     setDraggedTaskId(null);
     setDragOverColumn(null);
 
-    // Now sync with API in background
-    try {
-      console.log("📤 Syncing with API...");
-      await onUpdate(task.id, updates);
-      console.log("✅ API sync successful");
-      // Refresh the page to ensure data is up to date
-      window.location.reload();
-    } catch (error) {
-      console.error("❌ API sync failed:", error);
-      // Revert optimistic update on error
-      setOptimisticTasks([]);
-    }
+    (async () => {
+      try {
+        console.log("📤 Syncing with API...");
+        await onUpdate(task.id, updates);
+        console.log("✅ API sync successful");
+
+        window.location.reload(); // force reload from server
+      } catch (error) {
+        console.error("❌ API sync failed:", error);
+
+        setOptimisticTasks(prevTasks => {
+          const tasksToUpdate = prevTasks.length > 0 ? prevTasks : tasks;
+          return tasksToUpdate.map(t =>
+            t.id === draggedTaskId ? task : t
+          );
+        });
+      }
+    })();
   };
 
   return (
