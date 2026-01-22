@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { CheckCircle2, Circle, Trash2, FolderOpen, Tag, Clock } from "lucide-react";
+import { CheckCircle2, Circle, Trash2, FolderOpen, Tag, Clock, GripVertical } from "lucide-react";
 import type { Task } from "@/shared/types";
 
 interface TaskBoardProps {
@@ -40,9 +40,11 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
     if (isSyncLocked.current) {
       return;
     }
+    
     // Check if this is a structural change (add/remove tasks) vs just an update
     const localIds = new Set(localTasks.map(t => t.id));
     const propIds = new Set(tasks.map(t => t.id));
+    
     const hasAddedTasks = tasks.some(t => !localIds.has(t.id));
     const hasRemovedTasks = localTasks.some(t => !propIds.has(t.id));
     
@@ -96,6 +98,7 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
             taskRefs.current.get(nextTask.id)?.focus();
           }
           break;
+
         case "ArrowUp":
           e.preventDefault();
           if (currentIndex > 0) {
@@ -104,6 +107,7 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
             taskRefs.current.get(prevTask.id)?.focus();
           }
           break;
+
         case "ArrowRight":
           e.preventDefault();
           const columns: ColumnType[] = ["todo", "scheduled", "done"];
@@ -118,6 +122,7 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
             }
           }
           break;
+
         case "ArrowLeft":
           e.preventDefault();
           const cols: ColumnType[] = ["todo", "scheduled", "done"];
@@ -132,12 +137,14 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
             }
           }
           break;
+
         case "d":
           e.preventDefault();
           if (focusedTaskId) {
             handleDelete(focusedTaskId);
           }
           break;
+
         case "Enter":
         case " ":
           e.preventDefault();
@@ -169,6 +176,7 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
     // Optimistically remove from local state
     setLocalTasks(prev => prev.filter(t => t.id !== taskId));
     lockSync(2000);
+    
     try {
       await onDelete(taskId);
     } catch (error) {
@@ -185,7 +193,10 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
     if (!task) return;
 
     // Determine updates based on target column
+    // Local state uses numbers (0/1) to match Task type
     let updates: Partial<Task> = {};
+    // API expects booleans for is_completed and empty string for null due_date
+    let apiUpdates: any = {};
     
     if (column === "todo") {
       if (!task.is_completed && !task.due_date) {
@@ -194,8 +205,12 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
         return;
       }
       updates = { 
-        due_date: null as unknown as string,
-        is_completed: 0 
+        due_date: null,
+        is_completed: 0 // Local state uses number
+      };
+      apiUpdates = {
+        due_date: "", // Empty string converted to null by backend
+        is_completed: false // API expects boolean
       };
     } else if (column === "scheduled") {
       if (!task.is_completed && task.due_date) {
@@ -206,7 +221,11 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
       const dueDate = task.due_date || new Date().toISOString().split("T")[0];
       updates = { 
         due_date: dueDate,
-        is_completed: 0 
+        is_completed: 0 // Local state uses number
+      };
+      apiUpdates = {
+        due_date: dueDate,
+        is_completed: false // API expects boolean
       };
     } else if (column === "done") {
       if (task.is_completed) {
@@ -215,7 +234,11 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
         return;
       }
       updates = { 
-        is_completed: 1,
+        is_completed: 1, // Local state uses number
+        completed_at: new Date().toISOString()
+      };
+      apiUpdates = {
+        is_completed: true, // API expects boolean
         completed_at: new Date().toISOString()
       };
     }
@@ -223,7 +246,7 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
     // Lock sync to prevent prop updates from overwriting our optimistic state
     lockSync(3000);
 
-    // OPTIMISTIC UPDATE: Update local state immediately
+    // OPTIMISTIC UPDATE: Update local state immediately with number format
     setLocalTasks(prev => prev.map(t => 
       t.id === taskToMove ? { ...t, ...updates } : t
     ));
@@ -232,8 +255,8 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
     setDraggedTaskId(null);
     setDragOverColumn(null);
 
-    // Sync with API in background - don't await or handle errors that would revert
-    onUpdate(taskToMove, updates).catch(error => {
+    // Sync with API in background using boolean format - don't await or handle errors that would revert
+    onUpdate(taskToMove, apiUpdates as Partial<Task>).catch(error => {
       console.error("Failed to update task:", error);
       // Optionally could unlock and refetch here, but for now keep the optimistic state
     });
@@ -306,8 +329,9 @@ export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }:
           focusedTaskId={focusedTaskId}
         />
       </div>
+
       <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-        <p>Keyboard shortcuts: ↑↓ Navigate • ←→ Switch columns • D Delete • Enter/Space Move to next column</p>
+        <p>Keyboard shortcuts: ↑↓ Navigate tasks • ←→ Switch columns • D Delete • Enter/Space Move to next column</p>
       </div>
     </div>
   );
@@ -362,10 +386,18 @@ function Column({
 
   return (
     <div
-      className={`bg-gradient-to-b ${colorClasses[color]} border-2 ${borderClasses[color]} rounded-2xl p-4 min-h-[500px] transition-all ${
-        isDropTarget ? 'ring-4 ring-[#E50914] ring-offset-2 scale-105 shadow-2xl' : ''
+      className={`bg-gradient-to-b ${colorClasses[color]} border-2 ${borderClasses[color]} rounded-2xl p-4 min-h-[500px] transition-all duration-300 ease-out ${
+        isDropTarget ? 'ring-4 ring-[#E50914] ring-offset-4 dark:ring-offset-gray-900 scale-[1.02] shadow-2xl shadow-[#E50914]/30 border-[#E50914]' : ''
       }`}
       onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        if (draggedTaskId) {
+          onDragEnter(columnType);
+        }
+      }}
+      onDragEnter={(e) => {
         e.preventDefault();
         e.stopPropagation();
         if (draggedTaskId) {
@@ -377,11 +409,17 @@ function Column({
         e.stopPropagation();
         onDrop(columnType);
       }}
+      role="region"
+      aria-label={`${title} column`}
+      aria-dropeffect={isDropTarget ? "move" : "none"}
     >
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{title}</h3>
-          <span className="px-2 py-1 bg-white dark:bg-gray-800 rounded-lg text-xs font-semibold text-gray-700 dark:text-gray-300">
+          <span 
+            className="px-2 py-1 bg-white dark:bg-gray-800 rounded-lg text-xs font-semibold text-gray-700 dark:text-gray-300"
+            aria-label={`${tasks.length} tasks in ${title}`}
+          >
             {tasks.length}
           </span>
         </div>
@@ -389,25 +427,48 @@ function Column({
       </div>
 
       <div 
-        className="space-y-3 min-h-[400px]"
+        className={`space-y-3 min-h-[400px] transition-all duration-300 rounded-xl ${
+          isDropTarget ? 'bg-[#E50914]/5 dark:bg-[#E50914]/10 p-2 -m-2' : ''
+        }`}
         onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
+          if (draggedTaskId) {
+            onDragEnter(columnType);
+          }
+        }}
+        onDragEnter={(e) => {
           e.preventDefault();
           e.stopPropagation();
           if (draggedTaskId) {
             onDragEnter(columnType);
           }
         }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onDrop(columnType);
+        }}
+        role="list"
+        aria-label={`${title} tasks`}
       >
         {tasks.length === 0 && (
           <div 
-            className={`text-center py-12 transition-all pointer-events-none ${
-              isDropTarget ? 'scale-110' : ''
+            className={`text-center py-12 transition-all duration-300 ease-out pointer-events-none ${
+              isDropTarget ? 'scale-110 animate-pulse' : ''
             }`}
+            role="status"
+            aria-live="polite"
           >
-            <div className="text-5xl mb-3 animate-bounce">
+            <div className={`text-5xl mb-3 transition-transform duration-300 ${
+              isDropTarget ? 'animate-bounce scale-125' : ''
+            }`}>
               {isDropTarget ? '⬇️' : '📋'}
             </div>
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+            <p className={`text-sm font-medium transition-colors duration-300 ${
+              isDropTarget ? 'text-[#E50914] dark:text-[#E50914]' : 'text-gray-500 dark:text-gray-400'
+            }`}>
               {isDropTarget ? 'Drop here!' : 'Drop tasks here'}
             </p>
           </div>
@@ -417,28 +478,30 @@ function Column({
           <div
             key={task.id}
             ref={(el) => {
-              if (el) {
-                taskRefs.current.set(task.id, el);
-              } else {
-                taskRefs.current.delete(task.id);
-              }
+              if (el) taskRefs.current.set(task.id, el);
+              else taskRefs.current.delete(task.id);
             }}
-            tabIndex={0}
             draggable={true}
             onDragStart={(e) => {
               e.stopPropagation();
+              e.dataTransfer.setData("text/plain", task.id.toString());
+              e.dataTransfer.effectAllowed = "move";
               onDragStart(task.id);
             }}
             onDragEnd={(e) => {
               e.stopPropagation();
               onDragEnd();
             }}
+            tabIndex={focusedTaskId === task.id ? 0 : -1}
             onFocus={() => onTaskFocus(task.id, columnType)}
             onClick={() => onTaskFocus(task.id, columnType)}
-            className={`bg-white dark:bg-gray-900 border-2 rounded-xl p-3 transition-all hover:shadow-lg select-none focus:outline-none focus:ring-2 focus:ring-[#E50914] focus:ring-offset-2 ${
+            role="listitem"
+            aria-label={`Task: ${task.title}${task.is_completed ? ', completed' : ''}`}
+            aria-grabbed={draggedTaskId === task.id}
+            className={`bg-white dark:bg-gray-900 border-2 rounded-xl p-3 transition-all duration-200 ease-out hover:shadow-lg select-none focus:outline-none focus:ring-2 focus:ring-[#E50914] focus:ring-offset-2 ${
               draggedTaskId === task.id 
-                ? 'opacity-50 cursor-grabbing scale-95 border-[#E50914]' 
-                : 'cursor-grab active:cursor-grabbing'
+                ? 'opacity-40 cursor-grabbing scale-95 border-[#E50914] shadow-2xl shadow-[#E50914]/40 rotate-2 blur-[1px]' 
+                : 'cursor-grab active:cursor-grabbing hover:scale-[1.02] hover:-translate-y-0.5'
             } ${
               selectedTaskId === task.id 
                 ? "border-[#E50914] shadow-lg shadow-[#E50914]/20" 
@@ -447,12 +510,20 @@ function Column({
                 : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
             }`}
           >
-            <div className="flex items-start gap-2 mb-2 pointer-events-none">
+            <div className="flex items-start gap-2 mb-2">
+              <div 
+                className="mt-0.5 text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0"
+                aria-label="Drag to move task"
+                role="button"
+              >
+                <GripVertical className="w-4 h-4" aria-hidden="true" />
+              </div>
+
               <div className="mt-0.5 text-gray-400 flex-shrink-0">
                 {task.is_completed ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <CheckCircle2 className="w-4 h-4 text-green-500" aria-label="Completed" />
                 ) : (
-                  <Circle className="w-4 h-4" />
+                  <Circle className="w-4 h-4" aria-label="Not completed" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -466,29 +537,31 @@ function Column({
                     {task.description}
                   </p>
                 )}
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1" role="list" aria-label="Task metadata">
                   {task.due_date && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-xs text-blue-700 dark:text-blue-300">
-                      <Clock className="w-3 h-3" />
-                      {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-xs text-blue-700 dark:text-blue-300" role="listitem">
+                      <Clock className="w-3 h-3" aria-hidden="true" />
+                      <span aria-label={`Due ${new Date(task.due_date).toLocaleDateString()}`}>
+                        {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
                     </span>
                   )}
                   {task.estimated_minutes && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs text-gray-700 dark:text-gray-300">
-                      <Clock className="w-3 h-3" />
-                      {task.estimated_minutes}m
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs text-gray-700 dark:text-gray-300" role="listitem">
+                      <Clock className="w-3 h-3" aria-hidden="true" />
+                      <span aria-label={`Estimated ${task.estimated_minutes} minutes`}>{task.estimated_minutes}m</span>
                     </span>
                   )}
                   {task.project && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded text-xs text-purple-700 dark:text-purple-300">
-                      <FolderOpen className="w-3 h-3" />
-                      {task.project}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded text-xs text-purple-700 dark:text-purple-300" role="listitem">
+                      <FolderOpen className="w-3 h-3" aria-hidden="true" />
+                      <span aria-label={`Project: ${task.project}`}>{task.project}</span>
                     </span>
                   )}
                   {task.tags && JSON.parse(task.tags).slice(0, 2).map((tag: string) => (
-                    <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded text-xs text-orange-700 dark:text-orange-300">
-                      <Tag className="w-3 h-3" />
-                      {tag}
+                    <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded text-xs text-orange-700 dark:text-orange-300" role="listitem">
+                      <Tag className="w-3 h-3" aria-hidden="true" />
+                      <span aria-label={`Tag: ${tag}`}>{tag}</span>
                     </span>
                   ))}
                 </div>
@@ -498,9 +571,10 @@ function Column({
                   e.stopPropagation();
                   onDelete(task.id);
                 }}
+                aria-label="Delete task"
                 className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-gray-400 hover:text-red-600 flex-shrink-0 pointer-events-auto"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           </div>
