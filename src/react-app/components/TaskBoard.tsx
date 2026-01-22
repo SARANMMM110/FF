@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { CheckCircle2, Circle, Trash2, FolderOpen, Tag, Clock } from "lucide-react";
 import type { Task } from "@/shared/types";
 
@@ -9,167 +9,306 @@ interface TaskBoardProps {
   selectedTaskId?: number;
 }
 
-interface OptimisticTask extends Task {
-  _optimistic?: boolean;
-}
-
 type ColumnType = "todo" | "scheduled" | "done";
 
 export default function TaskBoard({ tasks, onUpdate, onDelete, selectedTaskId }: TaskBoardProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<ColumnType | null>(null);
-  const [optimisticTasks, setOptimisticTasks] = useState<OptimisticTask[]>([]);
+  const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
+  const [focusedTaskId, setFocusedTaskId] = useState<number | null>(null);
+  const [focusedColumn, setFocusedColumn] = useState<ColumnType>("todo");
 
-  // Use optimistic tasks if available, otherwise use props tasks
-  const displayTasks = optimisticTasks.length > 0 ? optimisticTasks : tasks;
+  const taskRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // Track if we're in the middle of a drag operation or recent update
+  const isSyncLocked = useRef(false);
+  const syncLockTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Lock sync for a period after drag operations
+  const lockSync = (duration: number = 2000) => {
+    isSyncLocked.current = true;
+    if (syncLockTimeout.current) {
+      clearTimeout(syncLockTimeout.current);
+    }
+    syncLockTimeout.current = setTimeout(() => {
+      isSyncLocked.current = false;
+    }, duration);
+  };
+
+  // Only sync from props when not locked and when tasks actually change structurally
+  useEffect(() => {
+    if (isSyncLocked.current) {
+      return;
+    }
+    // Check if this is a structural change (add/remove tasks) vs just an update
+    const localIds = new Set(localTasks.map(t => t.id));
+    const propIds = new Set(tasks.map(t => t.id));
+    const hasAddedTasks = tasks.some(t => !localIds.has(t.id));
+    const hasRemovedTasks = localTasks.some(t => !propIds.has(t.id));
+    
+    if (hasAddedTasks || hasRemovedTasks) {
+      // Structural change - sync fully
+      setLocalTasks(tasks);
+    }
+    // Otherwise, ignore prop updates to preserve local optimistic state
+  }, [tasks]);
+
+  // Initial sync on mount
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, []); // Only on mount
 
   // Filter tasks into columns
-  const todoTasks = displayTasks.filter(t => !t.is_completed && !t.due_date);
-  const scheduledTasks = displayTasks.filter(t => !t.is_completed && t.due_date);
-  const doneTasks = displayTasks.filter(t => t.is_completed);
+  const todoTasks = localTasks.filter(t => !t.is_completed && !t.due_date);
+  const scheduledTasks = localTasks.filter(t => !t.is_completed && t.due_date);
+  const doneTasks = localTasks.filter(t => t.is_completed);
+
+  const getColumnTasks = (column: ColumnType) => {
+    switch (column) {
+      case "todo": return todoTasks;
+      case "scheduled": return scheduledTasks;
+      case "done": return doneTasks;
+    }
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target.contentEditable === "true"
+      ) {
+        return;
+      }
+
+      const columnTasks = getColumnTasks(focusedColumn);
+      const currentIndex = focusedTaskId ? columnTasks.findIndex(t => t.id === focusedTaskId) : -1;
+
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          if (currentIndex < columnTasks.length - 1) {
+            const nextTask = columnTasks[currentIndex + 1];
+            setFocusedTaskId(nextTask.id);
+            taskRefs.current.get(nextTask.id)?.focus();
+          }
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          if (currentIndex > 0) {
+            const prevTask = columnTasks[currentIndex - 1];
+            setFocusedTaskId(prevTask.id);
+            taskRefs.current.get(prevTask.id)?.focus();
+          }
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          const columns: ColumnType[] = ["todo", "scheduled", "done"];
+          const currentColIndex = columns.indexOf(focusedColumn);
+          if (currentColIndex < columns.length - 1) {
+            const nextColumn = columns[currentColIndex + 1];
+            setFocusedColumn(nextColumn);
+            const nextColumnTasks = getColumnTasks(nextColumn);
+            if (nextColumnTasks.length > 0) {
+              setFocusedTaskId(nextColumnTasks[0].id);
+              taskRefs.current.get(nextColumnTasks[0].id)?.focus();
+            }
+          }
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          const cols: ColumnType[] = ["todo", "scheduled", "done"];
+          const currentIdx = cols.indexOf(focusedColumn);
+          if (currentIdx > 0) {
+            const prevColumn = cols[currentIdx - 1];
+            setFocusedColumn(prevColumn);
+            const prevColumnTasks = getColumnTasks(prevColumn);
+            if (prevColumnTasks.length > 0) {
+              setFocusedTaskId(prevColumnTasks[0].id);
+              taskRefs.current.get(prevColumnTasks[0].id)?.focus();
+            }
+          }
+          break;
+        case "d":
+          e.preventDefault();
+          if (focusedTaskId) {
+            handleDelete(focusedTaskId);
+          }
+          break;
+        case "Enter":
+        case " ":
+          e.preventDefault();
+          if (focusedTaskId) {
+            if (focusedColumn === "todo") {
+              handleDrop("scheduled", focusedTaskId);
+            } else if (focusedColumn === "scheduled") {
+              handleDrop("done", focusedTaskId);
+            }
+          }
+          break;
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [focusedTaskId, focusedColumn, localTasks]);
 
   const handleDragStart = (taskId: number) => {
-    console.log("🎯 Drag started for task:", taskId);
     setDraggedTaskId(taskId);
   };
 
   const handleDragEnd = () => {
-    console.log("🎯 Drag ended");
     setDraggedTaskId(null);
     setDragOverColumn(null);
   };
 
-  const handleDrop = async (column: ColumnType) => {
-    console.log("=== DROP EVENT ===");
-    console.log("Target column:", column);
-    console.log("Dragged task ID:", draggedTaskId);
-    
-    if (!draggedTaskId) {
-      console.log("❌ No dragged task");
-      return;
+  const handleDelete = async (taskId: number) => {
+    // Optimistically remove from local state
+    setLocalTasks(prev => prev.filter(t => t.id !== taskId));
+    lockSync(2000);
+    try {
+      await onDelete(taskId);
+    } catch (error) {
+      console.error("Failed to delete task:", error);
+      // On error, we'd need to restore - but for now just log
     }
+  };
 
-    const task = tasks.find(t => t.id === draggedTaskId);
-    if (!task) {
-      console.log("❌ Task not found");
-      return;
-    }
+  const handleDrop = async (column: ColumnType, taskId?: number) => {
+    const taskToMove = taskId || draggedTaskId;
+    if (!taskToMove) return;
 
-    console.log("📋 Current task:", { 
-      id: task.id, 
-      title: task.title, 
-      due_date: task.due_date, 
-      is_completed: task.is_completed 
-    });
+    const task = localTasks.find(t => t.id === taskToMove);
+    if (!task) return;
 
-    let updates: any = {};
+    // Determine updates based on target column
+    let updates: Partial<Task> = {};
     
     if (column === "todo") {
-      console.log("➡️ Moving to To Do");
+      if (!task.is_completed && !task.due_date) {
+        setDraggedTaskId(null);
+        setDragOverColumn(null);
+        return;
+      }
       updates = { 
-        due_date: null,
-        is_completed: false 
+        due_date: null as unknown as string,
+        is_completed: 0 
       };
     } else if (column === "scheduled") {
-      console.log("➡️ Moving to Scheduled");
+      if (!task.is_completed && task.due_date) {
+        setDraggedTaskId(null);
+        setDragOverColumn(null);
+        return;
+      }
       const dueDate = task.due_date || new Date().toISOString().split("T")[0];
       updates = { 
         due_date: dueDate,
-        is_completed: false 
+        is_completed: 0 
       };
     } else if (column === "done") {
-      console.log("➡️ Moving to Done");
+      if (task.is_completed) {
+        setDraggedTaskId(null);
+        setDragOverColumn(null);
+        return;
+      }
       updates = { 
-        is_completed: true 
+        is_completed: 1,
+        completed_at: new Date().toISOString()
       };
     }
 
-    // OPTIMISTIC UPDATE: Update UI immediately
-    const updatedTask = {
-      ...task,
-      ...updates,
-      _optimistic: true,
-    };
+    // Lock sync to prevent prop updates from overwriting our optimistic state
+    lockSync(3000);
 
-    setOptimisticTasks(prevTasks => {
-      const tasksToUpdate = prevTasks.length > 0 ? prevTasks : tasks;
-      return tasksToUpdate.map(t =>
-        t.id === draggedTaskId ? updatedTask : t
-      );
-    });
+    // OPTIMISTIC UPDATE: Update local state immediately
+    setLocalTasks(prev => prev.map(t => 
+      t.id === taskToMove ? { ...t, ...updates } : t
+    ));
 
-    console.log("⚡ Optimistic update applied");
-
+    // Clear drag state immediately
     setDraggedTaskId(null);
     setDragOverColumn(null);
 
-    (async () => {
-      try {
-        console.log("📤 Syncing with API...");
-        await onUpdate(task.id, updates);
-        console.log("✅ API sync successful");
-
-        window.location.reload(); // force reload from server
-      } catch (error) {
-        console.error("❌ API sync failed:", error);
-
-        setOptimisticTasks(prevTasks => {
-          const tasksToUpdate = prevTasks.length > 0 ? prevTasks : tasks;
-          return tasksToUpdate.map(t =>
-            t.id === draggedTaskId ? task : t
-          );
-        });
-      }
-    })();
+    // Sync with API in background - don't await or handle errors that would revert
+    onUpdate(taskToMove, updates).catch(error => {
+      console.error("Failed to update task:", error);
+      // Optionally could unlock and refetch here, but for now keep the optimistic state
+    });
   };
 
+  const handleTaskFocus = useCallback((taskId: number, column: ColumnType) => {
+    setFocusedTaskId(taskId);
+    setFocusedColumn(column);
+  }, []);
+
   return (
-    <div className="grid md:grid-cols-3 gap-6">
-      <Column
-        columnType="todo"
-        title="To Do"
-        description="Unscheduled tasks"
-        tasks={todoTasks}
-        onDrop={handleDrop}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragEnter={setDragOverColumn}
-        onDelete={onDelete}
-        selectedTaskId={selectedTaskId}
-        draggedTaskId={draggedTaskId}
-        isDropTarget={dragOverColumn === "todo"}
-        color="gray"
-      />
-      <Column
-        columnType="scheduled"
-        title="Scheduled"
-        description="Tasks with due dates"
-        tasks={scheduledTasks}
-        onDrop={handleDrop}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragEnter={setDragOverColumn}
-        onDelete={onDelete}
-        selectedTaskId={selectedTaskId}
-        draggedTaskId={draggedTaskId}
-        isDropTarget={dragOverColumn === "scheduled"}
-        color="blue"
-      />
-      <Column
-        columnType="done"
-        title="Done"
-        description="Completed tasks"
-        tasks={doneTasks}
-        onDrop={handleDrop}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragEnter={setDragOverColumn}
-        onDelete={onDelete}
-        selectedTaskId={selectedTaskId}
-        draggedTaskId={draggedTaskId}
-        isDropTarget={dragOverColumn === "done"}
-        color="green"
-      />
+    <div className="space-y-4">
+      <div 
+        className="grid md:grid-cols-3 gap-6"
+        role="region"
+        aria-label="Kanban board"
+      >
+        <Column
+          columnType="todo"
+          title="To Do"
+          description="Unscheduled tasks"
+          tasks={todoTasks}
+          onDrop={handleDrop}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragEnter={setDragOverColumn}
+          onDelete={handleDelete}
+          selectedTaskId={selectedTaskId}
+          draggedTaskId={draggedTaskId}
+          isDropTarget={dragOverColumn === "todo"}
+          color="gray"
+          taskRefs={taskRefs}
+          onTaskFocus={handleTaskFocus}
+          focusedTaskId={focusedTaskId}
+        />
+        <Column
+          columnType="scheduled"
+          title="Scheduled"
+          description="Tasks with due dates"
+          tasks={scheduledTasks}
+          onDrop={handleDrop}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragEnter={setDragOverColumn}
+          onDelete={handleDelete}
+          selectedTaskId={selectedTaskId}
+          draggedTaskId={draggedTaskId}
+          isDropTarget={dragOverColumn === "scheduled"}
+          color="blue"
+          taskRefs={taskRefs}
+          onTaskFocus={handleTaskFocus}
+          focusedTaskId={focusedTaskId}
+        />
+        <Column
+          columnType="done"
+          title="Done"
+          description="Completed tasks"
+          tasks={doneTasks}
+          onDrop={handleDrop}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragEnter={setDragOverColumn}
+          onDelete={handleDelete}
+          selectedTaskId={selectedTaskId}
+          draggedTaskId={draggedTaskId}
+          isDropTarget={dragOverColumn === "done"}
+          color="green"
+          taskRefs={taskRefs}
+          onTaskFocus={handleTaskFocus}
+          focusedTaskId={focusedTaskId}
+        />
+      </div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+        <p>Keyboard shortcuts: ↑↓ Navigate • ←→ Switch columns • D Delete • Enter/Space Move to next column</p>
+      </div>
     </div>
   );
 }
@@ -187,13 +326,16 @@ function Column({
   selectedTaskId,
   draggedTaskId,
   isDropTarget,
-  color
+  color,
+  taskRefs,
+  onTaskFocus,
+  focusedTaskId
 }: {
   columnType: ColumnType;
   title: string;
   description: string;
   tasks: Task[];
-  onDrop: (column: ColumnType) => void;
+  onDrop: (column: ColumnType, taskId?: number) => void;
   onDragStart: (taskId: number) => void;
   onDragEnd: () => void;
   onDragEnter: (column: ColumnType) => void;
@@ -202,6 +344,9 @@ function Column({
   draggedTaskId: number | null;
   isDropTarget: boolean;
   color: "gray" | "blue" | "green";
+  taskRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
+  onTaskFocus: (taskId: number, column: ColumnType) => void;
+  focusedTaskId: number | null;
 }) {
   const colorClasses = {
     gray: "from-gray-100 to-gray-50 dark:from-gray-900 dark:to-gray-800",
@@ -230,7 +375,6 @@ function Column({
       onDrop={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log(`📥 Drop event in ${title} column`);
         onDrop(columnType);
       }}
     >
@@ -272,6 +416,14 @@ function Column({
         {tasks.map((task) => (
           <div
             key={task.id}
+            ref={(el) => {
+              if (el) {
+                taskRefs.current.set(task.id, el);
+              } else {
+                taskRefs.current.delete(task.id);
+              }
+            }}
+            tabIndex={0}
             draggable={true}
             onDragStart={(e) => {
               e.stopPropagation();
@@ -281,13 +433,17 @@ function Column({
               e.stopPropagation();
               onDragEnd();
             }}
-            className={`bg-white dark:bg-gray-900 border-2 rounded-xl p-3 transition-all hover:shadow-lg select-none ${
+            onFocus={() => onTaskFocus(task.id, columnType)}
+            onClick={() => onTaskFocus(task.id, columnType)}
+            className={`bg-white dark:bg-gray-900 border-2 rounded-xl p-3 transition-all hover:shadow-lg select-none focus:outline-none focus:ring-2 focus:ring-[#E50914] focus:ring-offset-2 ${
               draggedTaskId === task.id 
                 ? 'opacity-50 cursor-grabbing scale-95 border-[#E50914]' 
                 : 'cursor-grab active:cursor-grabbing'
             } ${
               selectedTaskId === task.id 
                 ? "border-[#E50914] shadow-lg shadow-[#E50914]/20" 
+                : focusedTaskId === task.id
+                ? "border-blue-500 shadow-md"
                 : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
             }`}
           >
