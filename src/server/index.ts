@@ -15,8 +15,22 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 config({ path: path.resolve(process.cwd(), '.env') });
 
-// Static frontend: when Apache proxies /dashboard → Node, we serve the React build from here
-const staticDir = process.env.STATIC_DIR || path.join(__dirname, '..');
+// Static frontend: serve from dist/ (index.html + assets/). Server runs from dist/server/, so default = parent of __dirname.
+let staticDir = process.env.STATIC_DIR || path.join(__dirname, '..');
+// If we're in dist/server and index.html isn't here, use parent (dist/) so Vite build is found
+if (path.basename(staticDir) === 'server') {
+  try {
+    fs.accessSync(path.join(staticDir, 'index.html'));
+  } catch {
+    const parent = path.join(staticDir, '..');
+    try {
+      fs.accessSync(path.join(parent, 'index.html'));
+      staticDir = parent;
+    } catch {
+      /* keep staticDir as-is */
+    }
+  }
+}
 const MIME: Record<string, string> = {
   '.html': 'text/html',
   '.js': 'application/javascript',
@@ -68,7 +82,7 @@ async function serveStatic(request: Request): Promise<Response | null> {
         return new Response(buf, { headers: { 'Content-Type': 'text/html' } });
       } catch {
         return new Response(
-          `<!DOCTYPE html><html><head><title>Setup required</title></head><body><h1>Frontend not deployed</h1><p>Deploy the React build so <code>index.html</code> exists in the static directory.</p><p>From the project root run: <code>VITE_BASE_PATH=/dashboard/ npm run build</code>, then ensure <code>dist/index.html</code> and <code>dist/assets/</code> are on the server (same directory as <code>dist/server/</code>).</p><p>Current static dir: ${staticDir}</p></body></html>`,
+          `<!DOCTYPE html><html><head><title>Setup required</title></head><body><h1>Frontend not deployed</h1><p>Deploy the React build so <code>index.html</code> exists in the static directory.</p><p>From the project root run: <code>VITE_BASE_PATH=/dashboard/ npm run build</code>, then upload the full <code>dist/</code> folder (with <code>index.html</code>, <code>assets/</code>, and <code>server/</code>).</p><p>Static dir used: <code>${staticDir}</code>. If this is <code>.../dist/server</code>, set <code>STATIC_DIR</code> to the parent (e.g. <code>/home/flowchart/round_about/FF/dist</code>) or run PM2 from the project root so the default resolves to <code>dist/</code>.</p></body></html>`,
           { status: 503, headers: { 'Content-Type': 'text/html' } }
         );
       }
