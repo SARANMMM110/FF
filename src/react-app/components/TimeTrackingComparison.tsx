@@ -214,11 +214,12 @@ export default function TimeTrackingComparison() {
                   color: '#F9FAFB',
                   boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
                 }}
-                formatter={(value: number | undefined, name: string) => {
-                  if (value === undefined) return ['0', name];
-                  if (name === 'estimated') return [`${value} min`, 'Estimated'];
-                  if (name === 'actual') return [`${value} min`, 'Actual'];
-                  return [value, name];
+                formatter={(value: number | undefined, name: string | undefined) => {
+                  if (value === undefined) return ['0', name ?? ''];
+                  const n = name ?? '';
+                  if (n === 'estimated') return [`${value} min`, 'Estimated'];
+                  if (n === 'actual') return [`${value} min`, 'Actual'];
+                  return [String(value), n];
                 }}
               />
               <Legend />

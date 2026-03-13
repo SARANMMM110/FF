@@ -8,6 +8,8 @@
  * 3. Update the parent task's next_occurrence_date
  */
 
+import type { D1Database } from "@cloudflare/workers-types";
+
 interface RecurringTask {
   id: number;
   user_id: string;

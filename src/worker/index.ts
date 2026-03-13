@@ -449,8 +449,6 @@ app.get("/api/oauth/google/redirect_url", async (c) => {
 
   try {
     // Construct the redirect URI - this is where Google will send the user after authentication
-    // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
-    const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
     const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
 
     // Generate the Google OAuth URL
@@ -576,9 +574,7 @@ app.post("/api/sessions", async (c) => {
       return c.json({ error: "Google OAuth not configured" }, 500);
     }
 
-    // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
-    // IMPORTANT: This must match EXACTLY what was used in /api/oauth/google/redirect_url
-    const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
+    // IMPORTANT: redirectUri must match EXACTLY what was used in /api/oauth/google/redirect_url
     const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
 
     console.log("🔐 [OAuth] Exchanging code for tokens:", {

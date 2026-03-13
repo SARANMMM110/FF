@@ -478,11 +478,12 @@ export default function Analytics() {
                         color: '#F9FAFB',
                         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
                       }}
-                      formatter={(value: number | undefined, name: string) => {
-                        if (value === undefined) return ['0', name];
+                      formatter={(value: number | undefined, name: string | undefined) => {
+                        if (value === undefined) return ['0', name ?? ''];
+                        const n = name ?? '';
                         return [
-                          name === 'minutes' ? `${value} minutes` : `${value} sessions`,
-                          name === 'minutes' ? 'Focus Time' : 'Sessions'
+                          n === 'minutes' ? `${value} minutes` : `${value} sessions`,
+                          n === 'minutes' ? 'Focus Time' : 'Sessions'
                         ];
                       }}
                     />
@@ -548,11 +549,11 @@ export default function Analytics() {
                           color: '#F9FAFB',
                           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
                         }}
-                        formatter={(value: number | undefined, name: string, props: any) => {
-                          if (value === undefined) return ['0', name];
+                        formatter={(value: number | undefined, name: string | undefined, props: any) => {
+                          if (value === undefined) return ['0', name ?? ''];
                           return [
-                            `${value} min (${props.payload.sessions} sessions)`,
-                            name
+                            `${value} min (${props?.payload?.sessions ?? 0} sessions)`,
+                            name ?? ''
                           ];
                         }}
                       />
