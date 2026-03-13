@@ -15,6 +15,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 config({ path: path.resolve(process.cwd(), '.env') });
 
+// Base path for frontend when served under a subpath (e.g. /dashboard). Rewrites index.html asset URLs so they load.
+const frontendBasePath = (process.env.FRONTEND_BASE_PATH || process.env.BASE_PATH || "/dashboard").replace(/\/$/, "");
+
 // Static frontend: serve from dist/client/ (Vite+Cloudflare output) or dist/. Server runs from dist/server/.
 let staticDir = process.env.STATIC_DIR || path.join(__dirname, '..');
 
@@ -95,9 +98,19 @@ async function serveStatic(request: Request): Promise<Response | null> {
   const resolved = path.resolve(filePath);
   if (!resolved.startsWith(path.resolve(staticDir))) return new Response('Forbidden', { status: 403 });
   try {
-    const buf = await fs.promises.readFile(resolved);
+    let buf = await fs.promises.readFile(resolved);
     const ext = path.extname(resolved);
     const contentType = MIME[ext] || 'application/octet-stream';
+    // Rewrite index.html so asset URLs use the frontend base path (fixes /assets/ -> /dashboard/assets/)
+    if (resolved.endsWith("index.html") && frontendBasePath && frontendBasePath !== "/") {
+      let html = buf.toString("utf-8");
+      if (html.includes('src="/assets/') || html.includes('href="/assets/')) {
+        html = html
+          .replace(/\ssrc="\/assets\//g, ` src="${frontendBasePath}/assets/`)
+          .replace(/\shref="\/assets\//g, ` href="${frontendBasePath}/assets/`);
+        buf = Buffer.from(html, "utf-8");
+      }
+    }
     return new Response(buf, { headers: { 'Content-Type': contentType } });
   } catch (e: any) {
     if (e?.code === 'ENOENT' && isSpaPath(pathname)) {
