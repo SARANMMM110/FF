@@ -8,7 +8,8 @@ import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const raw = process.env.VITE_BASE_PATH ?? "/";
+// Default to /dashboard/ for production so assets load under mortalfocus.com/dashboard/
+const raw = process.env.VITE_BASE_PATH ?? (process.env.NODE_ENV === "production" ? "/dashboard/" : "/");
 const basePath = raw.endsWith("/") ? raw : raw + "/";
 
 // Use dir the app user can write to when dist/ is root-owned (e.g. on shared server)
