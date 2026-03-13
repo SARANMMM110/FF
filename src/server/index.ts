@@ -31,18 +31,26 @@ const MIME: Record<string, string> = {
   '.woff': 'font/woff',
 };
 
+function isSpaPath(pathname: string): boolean {
+  if (pathname === '/' || pathname === '' || pathname === '/dashboard' || pathname === '/dashboard/') return true;
+  if (pathname.startsWith('/dashboard/')) return true;
+  if (!pathname.startsWith('/api') && !pathname.startsWith('/assets/') && !/\.(js|css|ico|svg|png|jpg|jpeg|woff2?|json)$/i.test(pathname)) return true;
+  return false;
+}
+
 async function serveStatic(request: Request): Promise<Response | null> {
   const url = new URL(request.url);
   const pathname = url.pathname;
   if (pathname.startsWith('/api')) return null;
   let filePath: string;
-  if (pathname === '/' || pathname === '') {
+  if (pathname === '/' || pathname === '' || pathname === '/dashboard' || pathname === '/dashboard/') {
+    filePath = path.join(staticDir, 'index.html');
+  } else if (pathname.startsWith('/dashboard/')) {
     filePath = path.join(staticDir, 'index.html');
   } else if (pathname.startsWith('/assets/') || /\.(js|css|ico|svg|png|jpg|jpeg|woff2?|json)$/i.test(pathname)) {
     const safePath = pathname.replace(/^\/+/, '').replace(/\.\./g, '');
     filePath = path.join(staticDir, safePath);
   } else {
-    // SPA fallback: any other path → index.html
     filePath = path.join(staticDir, 'index.html');
   }
   const resolved = path.resolve(filePath);
@@ -53,13 +61,16 @@ async function serveStatic(request: Request): Promise<Response | null> {
     const contentType = MIME[ext] || 'application/octet-stream';
     return new Response(buf, { headers: { 'Content-Type': contentType } });
   } catch (e: any) {
-    if (e?.code === 'ENOENT' && (pathname === '/' || pathname === '' || !pathname.includes('.'))) {
+    if (e?.code === 'ENOENT' && isSpaPath(pathname)) {
       const indexPath = path.join(staticDir, 'index.html');
       try {
         const buf = await fs.promises.readFile(indexPath);
         return new Response(buf, { headers: { 'Content-Type': 'text/html' } });
       } catch {
-        return null;
+        return new Response(
+          `<!DOCTYPE html><html><head><title>Setup required</title></head><body><h1>Frontend not deployed</h1><p>Deploy the React build so <code>index.html</code> exists in the static directory.</p><p>From the project root run: <code>VITE_BASE_PATH=/dashboard/ npm run build</code>, then ensure <code>dist/index.html</code> and <code>dist/assets/</code> are on the server (same directory as <code>dist/server/</code>).</p><p>Current static dir: ${staticDir}</p></body></html>`,
+          { status: 503, headers: { 'Content-Type': 'text/html' } }
+        );
       }
     }
     return null;
