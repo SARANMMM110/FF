@@ -6,6 +6,7 @@ import { PostgresD1Database } from './adapters/postgres.js';
 import { MysqlD1Database } from './adapters/mysql.js';
 import { NodeR2Bucket } from './adapters/storage.js';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
 
@@ -13,6 +14,57 @@ import { config } from 'dotenv';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 config({ path: path.resolve(process.cwd(), '.env') });
+
+// Static frontend: when Apache proxies /dashboard → Node, we serve the React build from here
+const staticDir = process.env.STATIC_DIR || path.join(__dirname, '..');
+const MIME: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+};
+
+async function serveStatic(request: Request): Promise<Response | null> {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+  if (pathname.startsWith('/api')) return null;
+  let filePath: string;
+  if (pathname === '/' || pathname === '') {
+    filePath = path.join(staticDir, 'index.html');
+  } else if (pathname.startsWith('/assets/') || /\.(js|css|ico|svg|png|jpg|jpeg|woff2?|json)$/i.test(pathname)) {
+    const safePath = pathname.replace(/^\/+/, '').replace(/\.\./g, '');
+    filePath = path.join(staticDir, safePath);
+  } else {
+    // SPA fallback: any other path → index.html
+    filePath = path.join(staticDir, 'index.html');
+  }
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(path.resolve(staticDir))) return new Response('Forbidden', { status: 403 });
+  try {
+    const buf = await fs.promises.readFile(resolved);
+    const ext = path.extname(resolved);
+    const contentType = MIME[ext] || 'application/octet-stream';
+    return new Response(buf, { headers: { 'Content-Type': contentType } });
+  } catch (e: any) {
+    if (e?.code === 'ENOENT' && (pathname === '/' || pathname === '' || !pathname.includes('.'))) {
+      const indexPath = path.join(staticDir, 'index.html');
+      try {
+        const buf = await fs.promises.readFile(indexPath);
+        return new Response(buf, { headers: { 'Content-Type': 'text/html' } });
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
 
 // Get environment variables
 const getEnv = async () => {
@@ -84,17 +136,21 @@ if (process.env.FRONTEND_URL) {
   const hostname = process.env.HOSTNAME || '0.0.0.0';
   
   serve({
-    fetch: (request: Request) => {
-      // Inject environment bindings into the request context
-      // Hono will access these via c.env
-      // For Node.js, we pass env as the second parameter (execution context)
+    fetch: async (request: Request) => {
+      const url = new URL(request.url);
+      if (url.pathname.startsWith('/api')) {
+        return app.fetch(request, env as any);
+      }
+      const staticRes = await serveStatic(request);
+      if (staticRes) return staticRes;
       return app.fetch(request, env as any);
     },
     port,
     hostname,
   }, (info) => {
     console.log(`✅ Server is running on http://${hostname}:${info.port}`);
-    console.log(`📝 API endpoints available at http://${hostname}:${info.port}/api/*`);
+    console.log(`📝 API at http://${hostname}:${info.port}/api/*`);
+    console.log(`📂 Static frontend from ${staticDir}`);
   });
 
   // Graceful shutdown

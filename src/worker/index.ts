@@ -54,9 +54,9 @@ app.use('*', async (c, next) => {
       c.header('Access-Control-Allow-Origin', 'http://localhost:5173');
     }
   } else {
-    // Production: only allow configured frontend URL
-    const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-    if (origin === frontendUrl) {
+    // Production: only allow configured frontend URL (normalize trailing slash)
+    const frontendUrl = (c.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+    if (origin && (origin === frontendUrl || origin === frontendUrl + '/')) {
       c.header('Access-Control-Allow-Origin', origin);
     }
   }

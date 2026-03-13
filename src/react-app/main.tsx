@@ -9,10 +9,13 @@ import ErrorBoundary from "@/react-app/components/ErrorBoundary";
 import "@/react-app/index.css";
 import App from "@/react-app/App.tsx";
 
+// e.g. /dashboard when app is served at mortalfocus.com/dashboard (set via VITE_BASE_PATH at build time)
+const basename = import.meta.env.BASE_URL?.replace(/\/$/, "") || "/";
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename={basename}>
         <AuthProvider>
           <ThemeProvider>
             <ProfileProvider>

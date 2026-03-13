@@ -25,14 +25,18 @@ export const apiUrl = (endpoint: string): string => {
   // Remove leading slash if present
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
 
-  // If endpoint already starts with 'api/', use it as-is (it's already a full path)
-  // Otherwise, prepend the base
-  if (cleanEndpoint.startsWith('api/')) {
-    // Endpoint already includes 'api/' prefix, use it directly
-    return `/${cleanEndpoint}`;
+  const isAbsoluteBase = base.startsWith('http://') || base.startsWith('https://');
+
+  if (isAbsoluteBase) {
+    // VITE_API_URL is set (e.g. https://api.mortalfocus.com/api) — always use it
+    const baseTrimmed = base.replace(/\/$/, '');
+    return `${baseTrimmed}/${cleanEndpoint}`;
   }
 
-  // Combine base with endpoint
+  // Relative base (e.g. /api): use path under same origin
+  if (cleanEndpoint.startsWith('api/')) {
+    return `/${cleanEndpoint}`;
+  }
   return `${base}/${cleanEndpoint}`;
 };
 

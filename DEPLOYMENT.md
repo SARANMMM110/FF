@@ -218,6 +218,23 @@ Update your Google Cloud Console:
 
 ## Troubleshooting
 
+### API returns 404 in production (e.g. /api/tasks, /api/users/me)
+
+If the frontend loads at your domain but every API call returns **404 (Not Found)**, the server hosting the frontend is not forwarding `/api` to your backend.
+
+**Option 1 – Same host (recommended):** Proxy `/api` to your backend on the same server.
+
+- **Nginx:** Add a `location /api { ... proxy_pass http://localhost:3000; ... }` block (see “Configure Nginx” above) and reload Nginx.
+- **Other hosts:** Configure the reverse proxy so that `https://yourdomain.com/api/*` is sent to the backend (e.g. `http://localhost:3000`).
+
+**Option 2 – API on a different host:** If the API runs elsewhere (e.g. `https://api.mortalfocus.com`):
+
+1. Build the frontend with the API base URL:
+   ```bash
+   VITE_API_URL=https://api.mortalfocus.com/api npm run build:frontend
+   ```
+2. Ensure the API server allows CORS and cookies from your frontend origin.
+
 ### Backend not starting
 - Check PM2 logs: `pm2 logs focusflow-backend`
 - Verify `.env` file has all required variables
