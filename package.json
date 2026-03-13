@@ -51,6 +51,7 @@
   "scripts": {
     "build": "tsc -b && vite build",
     "build:frontend": "vite build",
+    "build:frontend:client": "vite build --config vite.client.config.ts",
     "build:server": "tsc -p tsconfig.server.json",
     "cf-typegen": "wrangler types",
     "check": "tsc && vite build && wrangler deploy --dry-run",
