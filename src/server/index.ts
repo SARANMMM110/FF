@@ -18,14 +18,19 @@ config({ path: path.resolve(process.cwd(), '.env') });
 // Static frontend: serve from dist/client/ (Vite+Cloudflare output) or dist/. Server runs from dist/server/.
 let staticDir = process.env.STATIC_DIR || path.join(__dirname, '..');
 
-// When running from dist/server/, prefer sibling dist/client/ (where Vite builds to)
+// When running from dist/server/, prefer sibling dist/client/ or project-root client-build/
 if (path.basename(__dirname) === 'server') {
-  const siblingClient = path.join(__dirname, '..', 'client');
-  try {
-    fs.accessSync(path.join(siblingClient, 'index.html'));
-    staticDir = siblingClient;
-  } catch {
-    /* dist/client not found, keep current staticDir */
+  for (const candidate of [
+    path.join(__dirname, '..', 'client'),           // dist/client
+    path.join(__dirname, '..', '..', 'client-build'), // client-build (when dist/ not writable)
+  ]) {
+    try {
+      fs.accessSync(path.join(candidate, 'index.html'));
+      staticDir = candidate;
+      break;
+    } catch {
+      /* try next */
+    }
   }
 }
 
