@@ -23,6 +23,8 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 5000,
+    // Avoid EACCES when dist/ was created by another user (e.g. root); don't clear output dir
+    emptyOutDir: false,
   },
   resolve: {
     alias: {
