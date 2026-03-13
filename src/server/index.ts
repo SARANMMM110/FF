@@ -31,16 +31,21 @@ if (path.basename(staticDir) === 'server') {
     }
   }
 }
-// Vite + Cloudflare plugin often outputs to dist/client/; use it if dist/index.html is missing
+// Vite + Cloudflare plugin often outputs to dist/client/; use it if index.html is missing in staticDir
 try {
   fs.accessSync(path.join(staticDir, 'index.html'));
 } catch {
-  const clientDir = path.join(staticDir, 'client');
-  try {
-    fs.accessSync(path.join(clientDir, 'index.html'));
-    staticDir = clientDir;
-  } catch {
-    /* keep staticDir as-is */
+  for (const clientDir of [
+    path.join(staticDir, 'client'),           // dist/client when staticDir is dist
+    path.join(staticDir, '..', 'client'),     // dist/client when staticDir is dist/server
+  ]) {
+    try {
+      fs.accessSync(path.join(clientDir, 'index.html'));
+      staticDir = clientDir;
+      break;
+    } catch {
+      /* try next */
+    }
   }
 }
 const MIME: Record<string, string> = {
