@@ -15,36 +15,39 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 config({ path: path.resolve(process.cwd(), '.env') });
 
-// Static frontend: serve from dist/ (index.html + assets/). Server runs from dist/server/, so default = parent of __dirname.
+// Static frontend: serve from dist/client/ (Vite+Cloudflare output) or dist/. Server runs from dist/server/.
 let staticDir = process.env.STATIC_DIR || path.join(__dirname, '..');
-// If we're in dist/server and index.html isn't here, use parent (dist/) so Vite build is found
-if (path.basename(staticDir) === 'server') {
+
+// When running from dist/server/, prefer sibling dist/client/ (where Vite builds to)
+if (path.basename(__dirname) === 'server') {
+  const siblingClient = path.join(__dirname, '..', 'client');
   try {
-    fs.accessSync(path.join(staticDir, 'index.html'));
+    fs.accessSync(path.join(siblingClient, 'index.html'));
+    staticDir = siblingClient;
   } catch {
-    const parent = path.join(staticDir, '..');
-    try {
-      fs.accessSync(path.join(parent, 'index.html'));
-      staticDir = parent;
-    } catch {
-      /* keep staticDir as-is */
-    }
+    /* dist/client not found, keep current staticDir */
   }
 }
-// Vite + Cloudflare plugin often outputs to dist/client/; use it if index.html is missing in staticDir
+
+// If index.html still not in staticDir, try other common locations
 try {
   fs.accessSync(path.join(staticDir, 'index.html'));
 } catch {
-  for (const clientDir of [
-    path.join(staticDir, 'client'),           // dist/client when staticDir is dist
-    path.join(staticDir, '..', 'client'),     // dist/client when staticDir is dist/server
-  ]) {
+  if (path.basename(staticDir) === 'server') {
+    const parentClient = path.join(staticDir, '..', 'client');
     try {
-      fs.accessSync(path.join(clientDir, 'index.html'));
-      staticDir = clientDir;
-      break;
+      fs.accessSync(path.join(parentClient, 'index.html'));
+      staticDir = parentClient;
     } catch {
-      /* try next */
+      /* keep staticDir as-is */
+    }
+  } else {
+    const clientSubdir = path.join(staticDir, 'client');
+    try {
+      fs.accessSync(path.join(clientSubdir, 'index.html'));
+      staticDir = clientSubdir;
+    } catch {
+      /* keep staticDir as-is */
     }
   }
 }
@@ -99,7 +102,7 @@ async function serveStatic(request: Request): Promise<Response | null> {
         return new Response(buf, { headers: { 'Content-Type': 'text/html' } });
       } catch {
         return new Response(
-          `<!DOCTYPE html><html><head><title>Setup required</title></head><body><h1>Frontend not deployed</h1><p>Deploy the React build so <code>index.html</code> exists in the static directory.</p><p>From the project root run: <code>VITE_BASE_PATH=/dashboard/ npm run build</code>, then upload the full <code>dist/</code> folder (with <code>index.html</code>, <code>assets/</code>, and <code>server/</code>).</p><p>Static dir used: <code>${staticDir}</code>. If this is <code>.../dist/server</code>, set <code>STATIC_DIR</code> to the parent (e.g. <code>/home/flowchart/round_about/FF/dist</code>) or run PM2 from the project root so the default resolves to <code>dist/</code>.</p></body></html>`,
+          `<!DOCTYPE html><html><head><title>Setup required</title></head><body><h1>Frontend not deployed</h1><p>Deploy the React build so <code>index.html</code> exists.</p><p>On the server, from project root run: <code>VITE_BASE_PATH=/dashboard/ npm run build</code>. Then ensure the <code>dist/</code> folder contains <code>dist/client/index.html</code> and <code>dist/client/assets/</code> (Vite outputs there). The Node app serves from <code>dist/client/</code> when it runs from <code>dist/server/</code>.</p><p>Static dir tried: <code>${staticDir}</code>. To override, set <code>STATIC_DIR=/home/flowchart/round_about/FF/dist/client</code> in .env.</p></body></html>`,
           { status: 503, headers: { 'Content-Type': 'text/html' } }
         );
       }
@@ -192,7 +195,12 @@ if (process.env.FRONTEND_URL) {
   }, (info) => {
     console.log(`✅ Server is running on http://${hostname}:${info.port}`);
     console.log(`📝 API at http://${hostname}:${info.port}/api/*`);
-    console.log(`📂 Static frontend from ${staticDir}`);
+    try {
+      fs.accessSync(path.join(staticDir, 'index.html'));
+      console.log(`📂 Static frontend: ${staticDir} (index.html found)`);
+    } catch {
+      console.warn(`⚠️ Static frontend: ${staticDir} (index.html NOT found – run build and deploy dist/client/)`);
+    }
   });
 
   // Graceful shutdown
