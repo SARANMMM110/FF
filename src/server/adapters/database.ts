@@ -21,25 +21,38 @@ export class NodeD1Database implements D1Database {
   async exec(query: string): Promise<D1ExecResult> {
     const statements = query.split(';').filter(s => s.trim());
     const results: any[] = [];
-    
+
+    const sqlWithoutFullLineComments = (raw: string) => {
+      return raw
+        .split('\n')
+        .filter((line) => {
+          const t = line.trim();
+          return t.length > 0 && !t.startsWith('--');
+        })
+        .join('\n')
+        .trim();
+    };
+
     for (const statement of statements) {
-      if (statement.trim()) {
-        const stmt = this.db.prepare(statement);
-        const result = stmt.run();
-        results.push({
-          success: true,
-          meta: {
-            changes: result.changes,
-            last_insert_rowid: result.lastInsertRowid,
-            last_row_id: result.lastInsertRowid,
-            changed_db: false,
-            duration: 0,
-            rows_read: 0,
-            rows_written: result.changes,
-            size_after: 0,
-          },
-        });
+      const executable = sqlWithoutFullLineComments(statement);
+      if (!executable) {
+        continue;
       }
+      const stmt = this.db.prepare(executable);
+      const result = stmt.run();
+      results.push({
+        success: true,
+        meta: {
+          changes: result.changes,
+          last_insert_rowid: result.lastInsertRowid,
+          last_row_id: result.lastInsertRowid,
+          changed_db: false,
+          duration: 0,
+          rows_read: 0,
+          rows_written: result.changes,
+          size_after: 0,
+        },
+      });
     }
 
     return {
