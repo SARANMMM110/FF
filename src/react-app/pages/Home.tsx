@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/react-app/contexts/AuthContext";
+import { useBranding } from "@/react-app/contexts/BrandingContext";
 import { useNavigate, useSearchParams } from "react-router";
-import { 
-  Play, TrendingUp, Target, Zap, Timer, CheckCircle2, BarChart3, Calendar, 
-  Clock, ListTodo, Settings, Sparkles, Command, Brain, Repeat, 
-  Shield, Layers, Users, Lightbulb, ChevronDown, ChevronUp, DollarSign, Crown
+import {
+  Play, TrendingUp, Target, Timer, CheckCircle2, BarChart3, Calendar,
+  Clock, ListTodo, Settings, Sparkles, Command, Brain, Repeat,
+  Shield, Layers, Users, Lightbulb, ChevronDown, ChevronUp, Crown,
 } from "lucide-react";
-import EmailSignupForm from "@/react-app/components/EmailSignupForm";
 import PricingPlans from "@/react-app/components/PricingPlans";
+import Logo from "@/react-app/components/Logo";
 
 export default function Home() {
   const { user, isPending } = useAuth();
+  const { appName, replaceAppName } = useBranding();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [specialPlan, setSpecialPlan] = useState<string | null>(null);
@@ -145,14 +147,7 @@ export default function Home() {
           )}
           {/* Header with Logo and Sign Up Button */}
           <div className="flex items-center justify-between mb-20">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-gradient-to-br from-[#E50914] to-[#FFD400] rounded-xl flex items-center justify-center shadow-lg shadow-[#E50914]/50">
-                <Zap className="w-6 h-6 text-black" strokeWidth={2.5} />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-[#E50914] to-[#FFD400] bg-clip-text text-transparent">
-                FocusFlow
-              </span>
-            </div>
+            <Logo size="lg" className="gap-3" />
             <button
               onClick={handleSignUp}
               className="px-6 py-2.5 bg-gradient-to-r from-[#E50914] to-[#FFD400] rounded-lg font-semibold text-black hover:shadow-lg hover:shadow-[#E50914]/50 transition-all duration-300 hover:scale-105"
@@ -176,7 +171,9 @@ export default function Home() {
               </span>
             </h1>
             <p className="text-lg md:text-xl text-gray-400 mb-10 leading-relaxed max-w-2xl mx-auto">
-              FocusFlow is the ultimate productivity companion designed for ambitious professionals. Seamlessly manage tasks, focus with intention, and track your progress—all while staying in your flow.
+              {replaceAppName(
+                "FocusFlow is the ultimate productivity companion designed for ambitious professionals. Seamlessly manage tasks, focus with intention, and track your progress—all while staying in your flow."
+              )}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <button
@@ -371,7 +368,7 @@ export default function Home() {
                     <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                     <div className="w-3 h-3 rounded-full bg-green-500"></div>
                   </div>
-                  <span className="text-xs text-gray-500">FocusFlow</span>
+                  <span className="text-xs text-gray-500">{appName}</span>
                 </div>
                 <div className="space-y-4">
                   <div className="bg-gradient-to-r from-[#E50914]/20 to-[#FFD400]/20 border border-[#E50914]/30 rounded-lg p-4">
@@ -388,52 +385,6 @@ export default function Home() {
                     <p className="text-xs text-gray-500">Focus Session Active</p>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Email Signup Section */}
-      <div className="max-w-4xl mx-auto px-6 py-24">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
-            Join the
-            <span className="bg-gradient-to-r from-[#E50914] to-[#FFD400] bg-clip-text text-transparent"> Waitlist</span>
-          </h2>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Be the first to access premium features, integrations, and exclusive productivity insights.
-          </p>
-        </div>
-        
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <EmailSignupForm source="home-waitlist" />
-          <div className="space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#E50914] to-[#FFD400] rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <Zap className="w-4 h-4 text-black" />
-              </div>
-              <div>
-                <h4 className="font-semibold mb-1">Early Access to Pro Features</h4>
-                <p className="text-gray-400 text-sm">Get premium features before anyone else, including advanced analytics and team collaboration.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#E50914] to-[#FFD400] rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <Users className="w-4 h-4 text-black" />
-              </div>
-              <div>
-                <h4 className="font-semibold mb-1">Exclusive Community</h4>
-                <p className="text-gray-400 text-sm">Join a community of productivity enthusiasts and get tips from experts.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#E50914] to-[#FFD400] rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <DollarSign className="w-4 h-4 text-black" />
-              </div>
-              <div>
-                <h4 className="font-semibold mb-1">Special Launch Pricing</h4>
-                <p className="text-gray-400 text-sm">Get exclusive discounts on premium plans when they launch.</p>
               </div>
             </div>
           </div>
@@ -463,18 +414,22 @@ export default function Home() {
             <span className="bg-gradient-to-r from-[#E50914] to-[#FFD400] bg-clip-text text-transparent"> Questions</span>
           </h2>
           <p className="text-gray-400 text-lg">
-            Everything you need to know about FocusFlow
+            {replaceAppName("Everything you need to know about FocusFlow")}
           </p>
         </div>
 
         <div className="space-y-4">
           <FAQItem
-            question="Is FocusFlow really free forever?"
-            answer="Yes! FocusFlow is completely free with no limits on tasks, projects, or focus sessions. We believe everyone deserves access to great productivity tools."
+            question={replaceAppName("Is FocusFlow really free forever?")}
+            answer={replaceAppName(
+              "Yes! FocusFlow is completely free with no limits on tasks, projects, or focus sessions. We believe everyone deserves access to great productivity tools."
+            )}
           />
           <FAQItem
-            question="What makes FocusFlow different from other productivity apps?"
-            answer="FocusFlow combines smart task management, Pomodoro timing, and analytics in one beautiful interface. Our command palette (Ctrl+K) and natural language parsing make it incredibly fast to use, while the weekly planner helps you stay organized."
+            question={replaceAppName("What makes FocusFlow different from other productivity apps?")}
+            answer={replaceAppName(
+              "FocusFlow combines smart task management, Pomodoro timing, and analytics in one beautiful interface. Our command palette (Ctrl+K) and natural language parsing make it incredibly fast to use, while the weekly planner helps you stay organized."
+            )}
           />
           <FAQItem
             question="How does the smart task parsing work?"
@@ -485,19 +440,23 @@ export default function Home() {
             answer="Absolutely! You can adjust focus session length (default 25 min), short breaks (5 min), long breaks (15 min), and how many cycles before a long break. Enable auto-start for seamless sessions."
           />
           <FAQItem
-            question="Does FocusFlow work offline?"
-            answer="FocusFlow works best online for syncing across devices, but basic functionality like timer and local task management works offline. Your data syncs when you reconnect."
+            question={replaceAppName("Does FocusFlow work offline?")}
+            answer={replaceAppName(
+              "FocusFlow works best online for syncing across devices, but basic functionality like timer and local task management works offline. Your data syncs when you reconnect."
+            )}
           />
           <FAQItem
             question="How does the Focus Guard feature work?"
-            answer="During focus sessions, FocusFlow tracks when you visit distracting websites and shows immediate alerts to bring your attention back. You can specify sites to monitor in settings. It also records distraction analytics to help you understand your focus patterns and improve over time."
+            answer={replaceAppName(
+              "During focus sessions, FocusFlow tracks when you visit distracting websites and shows immediate alerts to bring your attention back. You can specify sites to monitor in settings. It also records distraction analytics to help you understand your focus patterns and improve over time."
+            )}
           />
           <FAQItem
             question="Can I organize tasks into projects?"
             answer="Yes! Add projects to tasks using hashtags (#marketing) or through the task creation form. Filter by project in the tasks view and track progress across different initiatives."
           />
           <FAQItem
-            question="What analytics does FocusFlow provide?"
+            question={replaceAppName("What analytics does FocusFlow provide?")}
             answer="Track time spent on tasks, focus session completion rates, productivity patterns, and compare estimated vs actual time. The analytics help you understand your work patterns and improve estimates."
           />
         </div>
@@ -528,14 +487,7 @@ export default function Home() {
       <div className="border-t border-gray-900 mt-12">
         <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#E50914] to-[#FFD400] rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-black" strokeWidth={2.5} />
-              </div>
-              <span className="text-lg font-bold bg-gradient-to-r from-[#E50914] to-[#FFD400] bg-clip-text text-transparent">
-                FocusFlow
-              </span>
-            </div>
+            <Logo size="sm" className="gap-2" />
             <div className="flex flex-col md:flex-row items-center gap-4">
               <div className="flex items-center gap-4">
                 <a 
@@ -556,8 +508,8 @@ export default function Home() {
                   Terms of Service
                 </a>
               </div>
-              <p className="text-gray-500 text-sm">
-                Built for makers who ship. © 2025 FocusFlow
+              <p className="text-gray-500 text-sm text-center">
+                Built for makers who ship. © {new Date().getFullYear()} {appName}
               </p>
             </div>
           </div>

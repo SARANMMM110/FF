@@ -9,9 +9,11 @@ import { useAnalytics } from "@/react-app/hooks/useAnalytics";
 import { useSubscription } from "@/react-app/hooks/useSubscription";
 import ProUpgradeModal from "@/react-app/components/ProUpgradeModal";
 import { apiFetch } from "@/react-app/utils/api";
+import { useBranding } from "@/react-app/contexts/BrandingContext";
 
 export default function Analytics() {
   const { user, isPending } = useAuth();
+  const { appName } = useBranding();
   const navigate = useNavigate();
   const { isPro, isEnterprise, loading: subscriptionLoading } = useSubscription();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -676,7 +678,7 @@ export default function Analytics() {
               <Flame className="w-8 h-8 text-black" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-black">FocusFlow Analytics Report</h1>
+              <h1 className="text-2xl font-bold text-black">{appName} Analytics Report</h1>
               <p className="text-sm text-gray-600">Generated on {new Date().toLocaleDateString()}</p>
             </div>
           </div>

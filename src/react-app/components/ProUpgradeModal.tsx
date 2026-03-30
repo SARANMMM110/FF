@@ -1,4 +1,5 @@
-import { X, Crown, Sparkles, Check, ArrowRight } from "lucide-react";
+import { X, Crown, Sparkles, Check, ArrowRight, Mail } from "lucide-react";
+import { useBranding } from "@/react-app/contexts/BrandingContext";
 
 interface ProUpgradeModalProps {
   isOpen: boolean;
@@ -18,11 +19,22 @@ const PRO_FEATURES = [
 ];
 
 export default function ProUpgradeModal({ isOpen, onClose, feature }: ProUpgradeModalProps) {
+  const { appName, clientEmail, proPriceLabel } = useBranding();
+
   if (!isOpen) return null;
 
   const handleUpgrade = () => {
-    // Scroll to pricing section on home page
     window.location.href = "/#pricing";
+  };
+
+  const handleEmailClient = () => {
+    if (!clientEmail) return;
+    const subject = encodeURIComponent(`Pro upgrade — ${appName}`);
+    const body = encodeURIComponent(
+      `Hello,\n\nI'm interested in upgrading to Pro for ${appName}.\n` +
+        `The price shown in the app is: ${proPriceLabel}\n\nName:\nNotes:\n`
+    );
+    window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
   };
 
   return (
@@ -76,8 +88,7 @@ export default function ProUpgradeModal({ isOpen, onClose, feature }: ProUpgrade
               <div>
                 <p className="text-gray-400 text-sm mb-1">Pro Plan</p>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-bold text-white">$9</span>
-                  <span className="text-gray-400">/month</span>
+                  <span className="text-4xl font-bold text-white">{proPriceLabel}</span>
                 </div>
               </div>
               <div className="p-3 bg-gradient-to-r from-[#E50914] to-[#FFD400] rounded-xl">
@@ -91,22 +102,51 @@ export default function ProUpgradeModal({ isOpen, onClose, feature }: ProUpgrade
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4">
+            {clientEmail ? (
+              <button
+                type="button"
+                onClick={handleEmailClient}
+                className="flex-1 group px-8 py-4 bg-gradient-to-r from-[#E50914] to-[#FFD400] rounded-xl font-bold text-lg text-black hover:shadow-2xl hover:shadow-[#E50914]/50 transition-all duration-300 hover:scale-105"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <Mail className="w-5 h-5" />
+                  Email to upgrade
+                </span>
+              </button>
+            ) : null}
             <button
               onClick={handleUpgrade}
-              className="flex-1 group px-8 py-4 bg-gradient-to-r from-[#E50914] to-[#FFD400] rounded-xl font-bold text-lg text-black hover:shadow-2xl hover:shadow-[#E50914]/50 transition-all duration-300 hover:scale-105"
+              className={`group px-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-105 ${
+                clientEmail
+                  ? "flex-1 bg-gray-800 hover:bg-gray-700 text-white border border-gray-600"
+                  : "flex-1 bg-gradient-to-r from-[#E50914] to-[#FFD400] text-black hover:shadow-2xl hover:shadow-[#E50914]/50"
+              }`}
             >
               <span className="flex items-center justify-center gap-2">
-                Upgrade to Pro
+                View pricing
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
             </button>
             <button
               onClick={onClose}
-              className="px-8 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-semibold text-white transition-colors"
+              className="px-8 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-semibold text-white transition-colors sm:min-w-[140px]"
             >
               Maybe Later
             </button>
           </div>
+
+          {clientEmail ? (
+            <p className="text-center text-gray-400 text-sm mt-4">
+              Contact:{" "}
+              <a href={`mailto:${clientEmail}`} className="text-[#FFD400] hover:underline break-all">
+                {clientEmail}
+              </a>
+            </p>
+          ) : (
+            <p className="text-center text-amber-200/80 text-sm mt-4">
+              Add your contact email under Admin → Email so people can reach you from here.
+            </p>
+          )}
 
           {/* Footer note */}
           <p className="text-center text-gray-500 text-sm mt-6">

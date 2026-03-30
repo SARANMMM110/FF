@@ -16,10 +16,16 @@ config({ path: path.resolve(process.cwd(), '.env') });
 
 // Get environment variables
 const getEnv = async () => {
-  // Use MySQL if DB_TYPE is 'mysql', PostgreSQL if DATABASE_URL is provided, otherwise use SQLite
+  // DB_TYPE=sqlite → file DB (local dev without MySQL). Else MySQL if credentials / DB_TYPE=mysql, else Postgres or SQLite.
   let db: NodeD1Database | PostgresD1Database | MysqlD1Database;
-  
-  if (process.env.DB_TYPE === 'mysql' || (process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_NAME)) {
+  let dbSqlDialect: "mysql" | "sqlite" = "sqlite";
+
+  if (process.env.DB_TYPE === 'sqlite') {
+    db = new NodeD1Database(
+      process.env.DATABASE_PATH || path.join(__dirname, '../../database.sqlite')
+    );
+    console.log('📊 Using SQLite database (DB_TYPE=sqlite)');
+  } else if (process.env.DB_TYPE === 'mysql' || (process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_NAME)) {
     if (!process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
       throw new Error('❌ MySQL environment variables are missing');
     }
@@ -32,6 +38,7 @@ const getEnv = async () => {
       port: parseInt(process.env.DB_PORT || '3306', 10),
       ssl: process.env.DB_SSL === 'true',
     });
+    dbSqlDialect = "mysql";
     console.log('📊 Using MySQL database');
   } else if (process.env.DATABASE_URL) {
     const ssl = process.env.DB_SSL === 'true';
@@ -60,7 +67,9 @@ const getEnv = async () => {
     // Support both GOOGLE_OAUTH_* and GOOGLE_CALENDAR_* for compatibility
     GOOGLE_CALENDAR_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID || process.env.GOOGLE_CALENDAR_CLIENT_ID,
     GOOGLE_CALENDAR_CLIENT_SECRET: process.env.GOOGLE_OAUTH_CLIENT_SECRET || process.env.GOOGLE_CALENDAR_CLIENT_SECRET,
+    GOOGLE_OAUTH_REDIRECT_URL: process.env.GOOGLE_OAUTH_REDIRECT_URL,
     NOTION_INTEGRATION_SECRET: process.env.NOTION_INTEGRATION_SECRET,
+    DB_SQL_DIALECT: dbSqlDialect,
   };
 };
 
@@ -72,6 +81,12 @@ console.log(`📦 Storage: ${process.env.STORAGE_PATH || './storage'}`);
 console.log(`🌐 Port: ${port}`);
 if (process.env.FRONTEND_URL) {
   console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL}`);
+}
+const oauthRedirectLog = process.env.GOOGLE_OAUTH_REDIRECT_URL?.trim();
+if (oauthRedirectLog) {
+  console.log(`🔗 Google OAuth redirect URI: ${oauthRedirectLog}`);
+} else {
+  console.log('🔗 Google OAuth redirect URI: derived as {request origin}/api/oauth/google/callback (set GOOGLE_OAUTH_REDIRECT_URL if public URL differs)');
 }
 
 // Initialize environment and start server

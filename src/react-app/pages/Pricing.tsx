@@ -1,4 +1,5 @@
 import { useAuth } from "@/react-app/contexts/AuthContext";
+import { useBranding } from "@/react-app/contexts/BrandingContext";
 import { useNavigate } from "react-router";
 import { ArrowLeft } from "lucide-react";
 import PricingPlans from "@/react-app/components/PricingPlans";
@@ -52,7 +53,16 @@ export default function PricingPage() {
         <div className="border-t border-gray-900">
           <div className="max-w-7xl mx-auto px-6 py-12 text-center">
             <p className="text-gray-500 text-sm">
-              Questions? Contact us at hello@focusflow.app
+              {clientEmail ? (
+                <>
+                  Questions?{" "}
+                  <a href={`mailto:${clientEmail}`} className="text-gray-300 hover:text-white underline">
+                    {clientEmail}
+                  </a>
+                </>
+              ) : (
+                <>Questions? Your administrator can add a contact email in the admin panel (Email).</>
+              )}
             </p>
           </div>
         </div>

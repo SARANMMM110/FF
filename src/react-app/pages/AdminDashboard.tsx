@@ -17,11 +17,15 @@ import {
   ChevronUp,
   Ticket,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Palette,
+  CircleDollarSign,
+  Mail,
 } from "lucide-react";
 import { useToast } from "@/react-app/hooks/useToast";
 import { ToastContainer } from "@/react-app/components/Toast";
-import { apiFetch } from "@/react-app/utils/api";
+import { apiFetch, apiUrl } from "@/react-app/utils/api";
+import { cacheBustBrandingAssetUrl, useBranding } from "@/react-app/contexts/BrandingContext";
 
 interface AdminStats {
   total_users: number;
@@ -83,6 +87,35 @@ export default function AdminDashboardPage() {
   const [totalUsers, setTotalUsers] = useState(0);
   const USERS_PER_PAGE = 20;
   const { success: showSuccess, error: showError, toasts, removeToast } = useToast();
+  const { appName, refresh: refreshPublicBranding } = useBranding();
+  const [brandForm, setBrandForm] = useState({
+    app_name: "",
+    logo_url: "",
+    logo_display_mode: "icon_plus_name" as "full_logo" | "icon_plus_name",
+    pricing_free_label: "",
+    pricing_pro_label: "",
+    enterprise_price_display: "",
+    support_email: "",
+  });
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [brandUploading, setBrandUploading] = useState(false);
+  /** Bumped when logo file changes but URL path stays the same (browser cache). */
+  const [adminLogoPreviewBust, setAdminLogoPreviewBust] = useState(() => Date.now());
+
+  const mapBrandingResponse = (d: Record<string, unknown>) => ({
+    app_name: String(d.app_name ?? ""),
+    logo_url: String(d.logo_url ?? ""),
+    logo_display_mode:
+      d.logo_display_mode === "full_logo" ? ("full_logo" as const) : ("icon_plus_name" as const),
+    pricing_free_label: String(d.pricing_free_label ?? ""),
+    pricing_pro_label: String(d.pricing_pro_label ?? ""),
+    enterprise_price_display: String(d.enterprise_price_display ?? ""),
+    support_email: String(d.support_email ?? ""),
+  });
+
+  const validEmailOrEmpty = (s: string) => !s || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
   const getAuthHeaders = () => {
     // Try both localStorage and sessionStorage for better cross-browser compatibility
@@ -96,6 +129,25 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     checkAdminAuth();
   }, []);
+
+  useEffect(() => {
+    if (!admin?.is_super_admin) return;
+    void (async () => {
+      try {
+        const token = localStorage.getItem("admin_token") || sessionStorage.getItem("admin_token");
+        const res = await apiFetch("api/admin/branding", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const d = await res.json();
+          setBrandForm(mapBrandingResponse(d));
+          setAdminLogoPreviewBust(Date.now());
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [admin?.is_super_admin]);
 
   const checkAdminAuth = async () => {
     const token = localStorage.getItem("admin_token") || sessionStorage.getItem("admin_token");
@@ -334,6 +386,106 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const patchBranding = async (
+    body: Record<string, string>,
+    setSaving: (v: boolean) => void,
+    successMsg: string
+  ) => {
+    if (!admin?.is_super_admin) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch("api/admin/branding", {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setBrandForm((prev) => ({ ...prev, ...mapBrandingResponse(d) }));
+        setAdminLogoPreviewBust(Date.now());
+        await refreshPublicBranding();
+        showSuccess(successMsg);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showError((err as { error?: string }).error || "Failed to save settings");
+      }
+    } catch {
+      showError("Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveIdentitySection = async () => {
+    if (!admin?.is_super_admin) return;
+    const name = brandForm.app_name.trim();
+    if (!name) {
+      showError("App name is required (browser tab title and branding).");
+      return;
+    }
+    await patchBranding(
+      {
+        app_name: name,
+        app_tagline: "",
+        logo_url: brandForm.logo_url.trim(),
+        logo_display_mode: brandForm.logo_display_mode,
+      },
+      setIdentitySaving,
+      "App name & logo saved"
+    );
+  };
+
+  const savePricingSection = async () => {
+    if (!admin?.is_super_admin) return;
+    await patchBranding(
+      {
+        pricing_free_label: brandForm.pricing_free_label.trim(),
+        pricing_pro_label: brandForm.pricing_pro_label.trim(),
+        enterprise_price_display: brandForm.enterprise_price_display.trim(),
+      },
+      setPricingSaving,
+      "Pricing saved"
+    );
+  };
+
+  const saveEmailSection = async () => {
+    if (!admin?.is_super_admin) return;
+    const support = brandForm.support_email.trim();
+    if (!validEmailOrEmpty(support)) {
+      showError("Enter a valid email address, or leave the field empty.");
+      return;
+    }
+    await patchBranding({ support_email: support }, setEmailSaving, "Email saved");
+  };
+
+  const uploadBrandLogo = async (file: File) => {
+    if (!admin?.is_super_admin) return;
+    setBrandUploading(true);
+    try {
+      const token = localStorage.getItem("admin_token") || sessionStorage.getItem("admin_token");
+      const fd = new FormData();
+      fd.append("logo", file);
+      const res = await fetch(apiUrl("api/admin/branding/logo"), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.logo_url) {
+        setBrandForm((prev) => ({ ...prev, logo_url: data.logo_url }));
+        setAdminLogoPreviewBust(Date.now());
+        await refreshPublicBranding();
+        showSuccess("Logo uploaded");
+      } else {
+        showError(data.error || data.message || "Logo upload failed");
+      }
+    } catch {
+      showError("Logo upload failed");
+    } finally {
+      setBrandUploading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
@@ -353,7 +505,7 @@ export default function AdminDashboardPage() {
             <div className="flex items-center space-x-4">
               <Shield className="w-8 h-8 text-white" />
               <div>
-                <h1 className="text-2xl font-bold text-white">FocusFlow Admin</h1>
+                <h1 className="text-2xl font-bold text-white">{appName} Admin</h1>
                 <p className="text-gray-300">Welcome, {admin?.username}</p>
               </div>
             </div>
@@ -378,6 +530,251 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {admin?.is_super_admin && (
+          <>
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-8">
+              <div className="flex items-center gap-2 mb-2">
+                <Palette className="w-6 h-6 text-amber-300" />
+                <h2 className="text-xl font-bold text-white">App name &amp; logo</h2>
+              </div>
+              <p className="text-gray-400 text-sm mb-4">
+                App name sets the browser tab title and is used in emails and legal pages. The logo appears in the header; with Icon + app name, the name also shows beside the mark.
+              </p>
+              <div className="mb-4 space-y-2">
+                <p className="text-xs text-gray-400 uppercase tracking-wide">Logo style</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label
+                    className={`cursor-pointer rounded-lg border p-3 transition-colors ${
+                      brandForm.logo_display_mode === "full_logo"
+                        ? "border-[#FFD400] bg-white/10"
+                        : "border-white/20 bg-black/20 hover:border-white/30"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="logo_display_mode"
+                      className="sr-only"
+                      checked={brandForm.logo_display_mode === "full_logo"}
+                      onChange={() =>
+                        setBrandForm((p) => ({ ...p, logo_display_mode: "full_logo" }))
+                      }
+                    />
+                    <span className="text-sm font-semibold text-white">Logo only</span>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Use when your image already includes the product name.
+                    </p>
+                  </label>
+                  <label
+                    className={`cursor-pointer rounded-lg border p-3 transition-colors ${
+                      brandForm.logo_display_mode === "icon_plus_name"
+                        ? "border-[#FFD400] bg-white/10"
+                        : "border-white/20 bg-black/20 hover:border-white/30"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="logo_display_mode"
+                      className="sr-only"
+                      checked={brandForm.logo_display_mode === "icon_plus_name"}
+                      onChange={() =>
+                        setBrandForm((p) => ({ ...p, logo_display_mode: "icon_plus_name" }))
+                      }
+                    />
+                    <span className="text-sm font-semibold text-white">Icon + app name</span>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Mark next to the app name (or Zap fallback if no image).
+                    </p>
+                  </label>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-gray-400 mb-1">App name</label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Shown in the browser tab and system UI. With Icon + app name, it also appears next to the logo in the header.
+                  </p>
+                  <input
+                    value={brandForm.app_name}
+                    onChange={(e) => setBrandForm((p) => ({ ...p, app_name: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                    placeholder="Your app name"
+                  />
+                </div>
+                {brandForm.logo_display_mode === "full_logo" ? (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-gray-400 mb-1">Logo image</label>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Upload or paste a URL for the full logo (including any text in the image).
+                    </p>
+                    <input
+                      value={brandForm.logo_url}
+                      onChange={(e) => setBrandForm((p) => ({ ...p, logo_url: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                      placeholder="https://… or leave empty after upload"
+                    />
+                  </div>
+                ) : (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-gray-400 mb-1">Logo URL (optional)</label>
+                    <input
+                      value={brandForm.logo_url}
+                      onChange={(e) => setBrandForm((p) => ({ ...p, logo_url: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                      placeholder="https://… or leave empty after upload"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3 mt-4">
+                {brandForm.logo_display_mode === "full_logo" ? (
+                  <>
+                    <label className="cursor-pointer text-sm text-blue-200 hover:text-white border border-white/20 rounded-lg px-3 py-2">
+                      {brandUploading ? "Uploading…" : "Upload logo image"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={brandUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) void uploadBrandLogo(f);
+                        }}
+                      />
+                    </label>
+                    {brandForm.logo_url ? (
+                      <img
+                        key={adminLogoPreviewBust}
+                        src={cacheBustBrandingAssetUrl(brandForm.logo_url, adminLogoPreviewBust)}
+                        alt=""
+                        className="h-12 max-w-[200px] w-auto object-contain object-left"
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <label className="cursor-pointer text-sm text-blue-200 hover:text-white border border-white/20 rounded-lg px-3 py-2">
+                      {brandUploading ? "Uploading…" : "Upload logo image"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={brandUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) void uploadBrandLogo(f);
+                        }}
+                      />
+                    </label>
+                    {brandForm.logo_url ? (
+                      <img
+                        key={adminLogoPreviewBust}
+                        src={cacheBustBrandingAssetUrl(brandForm.logo_url, adminLogoPreviewBust)}
+                        alt=""
+                        className="h-10 w-10 object-contain"
+                      />
+                    ) : null}
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void saveIdentitySection()}
+                  disabled={identitySaving}
+                  className="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-[#E50914] to-[#FFD400] text-black font-semibold disabled:opacity-50"
+                >
+                  {identitySaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-8">
+              <div className="flex items-center gap-2 mb-2">
+                <CircleDollarSign className="w-6 h-6 text-emerald-300" />
+                <h2 className="text-xl font-bold text-white">Pricing (public page)</h2>
+              </div>
+              <p className="text-gray-400 text-sm mb-4">
+                These lines appear on the three plan cards (Free Forever, Pro, Enterprise). Leave blank to use built-in defaults (Free, $9/month, $29/month).
+              </p>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Free Forever — price line</label>
+                  <input
+                    value={brandForm.pricing_free_label}
+                    onChange={(e) =>
+                      setBrandForm((p) => ({ ...p, pricing_free_label: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                    placeholder="e.g. Free"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Pro — price line</label>
+                  <input
+                    value={brandForm.pricing_pro_label}
+                    onChange={(e) =>
+                      setBrandForm((p) => ({ ...p, pricing_pro_label: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                    placeholder="e.g. $9/month"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Enterprise — price line</label>
+                  <input
+                    value={brandForm.enterprise_price_display}
+                    onChange={(e) =>
+                      setBrandForm((p) => ({ ...p, enterprise_price_display: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                    placeholder="e.g. $29/month"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  type="button"
+                  onClick={() => void savePricingSection()}
+                  disabled={pricingSaving}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#E50914] to-[#FFD400] text-black font-semibold disabled:opacity-50"
+                >
+                  {pricingSaving ? "Saving…" : "Save pricing"}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-8">
+              <div className="flex items-center gap-2 mb-2">
+                <Mail className="w-6 h-6 text-sky-300" />
+                <h2 className="text-xl font-bold text-white">Email</h2>
+              </div>
+              <p className="text-gray-400 text-sm mb-4">
+                This email is used across the app, including contact links wherever they appear.
+              </p>
+              <div className="max-w-xl">
+                <label className="block text-xs text-gray-400 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={brandForm.support_email}
+                  onChange={(e) => setBrandForm((p) => ({ ...p, support_email: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                  placeholder="you@company.com"
+                />
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  type="button"
+                  onClick={() => void saveEmailSection()}
+                  disabled={emailSaving}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#E50914] to-[#FFD400] text-black font-semibold disabled:opacity-50"
+                >
+                  {emailSaving ? "Saving…" : "Save email"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Stats Grid */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
@@ -938,7 +1335,7 @@ export default function AdminDashboardPage() {
                   >
                     <option value="free" className="bg-gray-800">Free Plan</option>
                     <option value="pro" className="bg-gray-800">Pro Plan ($9/month)</option>
-                    <option value="enterprise" className="bg-gray-800">Enterprise Plan ($29/month)</option>
+                    <option value="enterprise" className="bg-gray-800">Enterprise Plan</option>
                   </select>
                 </div>
 

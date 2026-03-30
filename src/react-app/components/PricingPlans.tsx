@@ -1,4 +1,5 @@
 import { Check, Zap, Crown, Star, ArrowRight } from "lucide-react";
+import { useBranding } from "@/react-app/contexts/BrandingContext";
 
 const plans = [
   {
@@ -42,7 +43,7 @@ const plans = [
     ],
     icon: <Crown className="w-6 h-6" />,
     gradient: "from-[#E50914] to-[#FFD400]",
-    buttonText: "Coming Soon",
+    buttonText: "Buy Pro",
     popular: true,
   },
   {
@@ -65,7 +66,7 @@ const plans = [
     ],
     icon: <Star className="w-6 h-6" />,
     gradient: "from-purple-600 to-blue-600",
-    buttonText: "Contact Sales",
+    buttonText: "Buy Enterprise",
     popular: false,
   },
 ];
@@ -75,6 +76,43 @@ interface PricingPlansProps {
 }
 
 export default function PricingPlans({ className = "" }: PricingPlansProps) {
+  const { appName, clientEmail, freePriceLabel, proPriceLabel, enterprisePriceLabel } =
+    useBranding();
+
+  const priceLabelFor = (planId: string) => {
+    if (planId === "free") return freePriceLabel;
+    if (planId === "pro") return proPriceLabel;
+    return enterprisePriceLabel;
+  };
+
+  const openBuyPlanEmail = (
+    planLabel: "Pro" | "Enterprise",
+    priceAsShown: string
+  ) => {
+    if (!clientEmail) {
+      alert(
+        "No contact email is set yet. Ask your administrator to add one under Admin → Email."
+      );
+      return;
+    }
+    try {
+      const subject = encodeURIComponent(`${appName} — ${planLabel} — payment link request`);
+      const body = encodeURIComponent(
+        `Hello,\n\n` +
+          `I would like to subscribe to ${appName} and am writing to request a payment link.\n\n` +
+          `Details:\n` +
+          `• Selected plan: ${planLabel}\n` +
+          `• Price shown on the pricing page: ${priceAsShown}\n\n` +
+          `Please send me a secure payment link (or next steps to complete checkout) for this plan.\n\n` +
+          `Thank you,\n`
+      );
+      window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
+    } catch (error) {
+      console.error("Email link error:", error);
+      alert(`Could not open email. Please write to: ${clientEmail}`);
+    }
+  };
+
   const handleSelectPlan = (planId: string) => {
     if (planId === "free") {
       try {
@@ -86,26 +124,12 @@ export default function PricingPlans({ className = "" }: PricingPlansProps) {
     }
 
     if (planId === "enterprise") {
-      try {
-        const subject = encodeURIComponent("Enterprise Plan Inquiry - FocusFlow");
-        const body = encodeURIComponent("Hi, I'm interested in learning more about the Enterprise plan.\n\nName:\nCompany:\nTeam Size:\n\nPlease contact me to discuss pricing and features.");
-        const mailtoLink = `mailto:sales@focusflow.app?subject=${subject}&body=${body}`;
-        window.location.href = mailtoLink;
-      } catch (error) {
-        console.error("Email link error:", error);
-        alert("Please contact us at sales@focusflow.app");
-      }
+      openBuyPlanEmail("Enterprise", enterprisePriceLabel);
       return;
     }
 
-    // Pro plan - coming soon, no errors
     if (planId === "pro") {
-      alert("Pro plan is coming soon! Sign up for free and we'll notify you when it launches.");
-      try {
-        window.location.href = "/auth/register";
-      } catch (error) {
-        console.error("Navigation error:", error);
-      }
+      openBuyPlanEmail("Pro", proPriceLabel);
     }
   };
 
@@ -138,8 +162,7 @@ export default function PricingPlans({ className = "" }: PricingPlansProps) {
                 <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
                 
                 <div className="mb-6">
-                  <span className="text-4xl font-bold">{plan.price === 0 ? "Free" : `$${plan.price}`}</span>
-                  {plan.price > 0 && <span className="text-gray-400">/{plan.period}</span>}
+                  <span className="text-4xl font-bold">{priceLabelFor(plan.id)}</span>
                 </div>
               </div>
 
@@ -170,37 +193,6 @@ export default function PricingPlans({ className = "" }: PricingPlansProps) {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* FAQ Section */}
-      <div className="mt-16 text-center">
-        <h3 className="text-xl font-semibold mb-4">Frequently Asked Questions</h3>
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          <div className="text-left">
-            <h4 className="font-medium mb-2">Is FocusFlow really free?</h4>
-            <p className="text-gray-400 text-sm">
-              Yes! The Free Forever plan includes all core features with no time limits or credit card required.
-            </p>
-          </div>
-          <div className="text-left">
-            <h4 className="font-medium mb-2">When will Pro features be available?</h4>
-            <p className="text-gray-400 text-sm">
-              Pro features are coming soon! Sign up for free and we'll notify you when they launch.
-            </p>
-          </div>
-          <div className="text-left">
-            <h4 className="font-medium mb-2">Can I use FocusFlow for my team?</h4>
-            <p className="text-gray-400 text-sm">
-              Team and enterprise features are in development. Contact sales@focusflow.app for early access.
-            </p>
-          </div>
-          <div className="text-left">
-            <h4 className="font-medium mb-2">What makes FocusFlow different?</h4>
-            <p className="text-gray-400 text-sm">
-              Beautiful design, powerful features, and completely free core functionality. No hidden fees or paywalls for essential features.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

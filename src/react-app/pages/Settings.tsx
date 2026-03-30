@@ -9,10 +9,12 @@ import { useSubscription } from "@/react-app/hooks/useSubscription";
 import ProUpgradeModal from "@/react-app/components/ProUpgradeModal";
 import BlockedWebsitesManager from "@/react-app/components/BlockedWebsitesManager";
 import Layout from "@/react-app/components/Layout";
+import { useBranding } from "@/react-app/contexts/BrandingContext";
 import { Loader2, Save, Clock, Repeat, Shield, Sparkles, Link2, Check, X, Crown } from "lucide-react";
 
 export default function Settings() {
   const { user, isPending } = useAuth();
+  const { replaceAppName } = useBranding();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { settings, loading, updateSettings } = useSettings();
@@ -285,7 +287,7 @@ export default function Settings() {
                   Custom Theme
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  Personalize your FocusFlow experience with custom colors
+                  {replaceAppName("Personalize your FocusFlow experience with custom colors")}
                 </p>
               </div>
               <span className="px-3 py-1 bg-gradient-to-r from-[#E50914] to-[#FFD400] rounded-full text-xs font-bold text-black">
@@ -583,7 +585,9 @@ export default function Settings() {
                 ) : (
                   <div className="space-y-3">
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      Connect your Google Calendar to see your events in FocusFlow and better plan your focus sessions.
+                      {replaceAppName(
+                        "Connect your Google Calendar to see your events in FocusFlow and better plan your focus sessions."
+                      )}
                     </p>
                     <button
                       onClick={() => setShowCalendarComingSoon(true)}

@@ -22,7 +22,108 @@ interface Env {
   AWEBER_LIST_ID?: string;
   GOOGLE_CALENDAR_CLIENT_ID?: string;
   GOOGLE_CALENDAR_CLIENT_SECRET?: string;
+  /** Must match Google Cloud "Authorized redirect URIs" exactly; defaults to {request origin}/api/oauth/google/callback */
+  GOOGLE_OAUTH_REDIRECT_URL?: string;
   NOTION_INTEGRATION_SECRET?: string;
+  /** Node: "mysql" | "sqlite". Cloudflare D1 defaults to sqlite when unset. */
+  DB_SQL_DIALECT?: "mysql" | "sqlite";
+}
+
+function getSqlDialect(env: Env): "mysql" | "sqlite" {
+  return env.DB_SQL_DIALECT === "mysql" ? "mysql" : "sqlite";
+}
+
+/** Minutes from start_time to now for in-progress focus sessions (MySQL vs SQLite). */
+function sqlLiveSessionMinutes(column: string, dialect: "mysql" | "sqlite"): string {
+  if (dialect === "mysql") {
+    return `TIMESTAMPDIFF(MINUTE, ${column}, NOW())`;
+  }
+  return `CAST((julianday('now') - julianday(${column})) * 24 * 60 AS INTEGER)`;
+}
+
+function sqlNowCmp(dialect: "mysql" | "sqlite"): string {
+  return dialect === "mysql" ? "NOW()" : "datetime('now')";
+}
+
+function sqlSevenDaysAgo(dialect: "mysql" | "sqlite"): string {
+  return dialect === "mysql" ? "DATE_SUB(NOW(), INTERVAL 7 DAY)" : "datetime('now', '-7 days')";
+}
+
+const DEFAULT_APP_NAME = "FocusFlow";
+
+function trimStr(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+const LOGO_DISPLAY_MODES = ["full_logo", "icon_plus_name"] as const;
+type LogoDisplayMode = (typeof LOGO_DISPLAY_MODES)[number];
+
+function parseLogoDisplayMode(v: unknown): LogoDisplayMode {
+  return typeof v === "string" && LOGO_DISPLAY_MODES.includes(v as LogoDisplayMode)
+    ? (v as LogoDisplayMode)
+    : "icon_plus_name";
+}
+
+async function getWhiteLabelRow(db: any): Promise<{
+  app_name: string;
+  logo_url: string | null;
+  logo_display_mode: LogoDisplayMode;
+  support_email: string | null;
+  enterprise_price_display: string | null;
+  pricing_free_label: string | null;
+  pricing_pro_label: string | null;
+}> {
+  try {
+    const { results } = await db
+      .prepare(
+        `SELECT app_name, logo_url, logo_display_mode, support_email, enterprise_price_display,
+          pricing_free_label, pricing_pro_label
+         FROM white_label_settings WHERE id = 1`
+      )
+      .all();
+    if (!results.length) {
+      return {
+        app_name: DEFAULT_APP_NAME,
+        logo_url: null,
+        logo_display_mode: "icon_plus_name",
+        support_email: null,
+        enterprise_price_display: null,
+        pricing_free_label: null,
+        pricing_pro_label: null,
+      };
+    }
+    const row = results[0] as any;
+    return {
+      app_name: row.app_name || DEFAULT_APP_NAME,
+      logo_url: row.logo_url ?? null,
+      logo_display_mode: parseLogoDisplayMode(row.logo_display_mode),
+      support_email: trimStr(row.support_email),
+      enterprise_price_display: trimStr(row.enterprise_price_display),
+      pricing_free_label: trimStr(row.pricing_free_label),
+      pricing_pro_label: trimStr(row.pricing_pro_label),
+    };
+  } catch {
+    return {
+      app_name: DEFAULT_APP_NAME,
+      logo_url: null,
+      logo_display_mode: "icon_plus_name",
+      support_email: null,
+      enterprise_price_display: null,
+      pricing_free_label: null,
+      pricing_pro_label: null,
+    };
+  }
+}
+
+/**
+ * OAuth redirect_uri sent to Google (and used again when exchanging the code).
+ * Prefer GOOGLE_OAUTH_REDIRECT_URL when the public API URL differs from c.req.url (e.g. reverse proxy).
+ */
+function getGoogleLoginOAuthRedirectUri(c: { req: { url: string }; env: Env }): string {
+  const configured =
+    c.env.GOOGLE_OAUTH_REDIRECT_URL?.trim() || process.env.GOOGLE_OAUTH_REDIRECT_URL?.trim();
+  if (configured) return configured;
+  return `${new URL(c.req.url).origin}/api/oauth/google/callback`;
 }
 
 interface Variables {
@@ -109,6 +210,48 @@ app.get("/api/health", async (c) => {
       },
       503
     );
+  }
+});
+
+// Public branding (marketing, login, shell UI)
+app.get("/api/branding", async (c) => {
+  const row = await getWhiteLabelRow(c.env.DB);
+  c.header("Cache-Control", "private, no-cache, no-store, must-revalidate");
+  return c.json({
+    app_name: row.app_name,
+    logo_url: row.logo_url,
+    logo_display_mode: row.logo_display_mode,
+    support_email: row.support_email,
+    enterprise_price_display: row.enterprise_price_display,
+    pricing_free_label: row.pricing_free_label,
+    pricing_pro_label: row.pricing_pro_label,
+  });
+});
+
+// Serve uploaded branding images from R2 (public)
+app.get("/api/branding/asset/:filename", async (c) => {
+  if (!c.env.R2_BUCKET) {
+    return c.json({ error: "Storage not configured" }, 404);
+  }
+  const raw = c.req.param("filename") || "";
+  if (!/^[a-zA-Z0-9._-]+$/.test(raw) || raw.includes("..")) {
+    return c.json({ error: "Invalid filename" }, 400);
+  }
+  try {
+    const key = `branding/${raw}`;
+    const object = await c.env.R2_BUCKET.get(key);
+    if (!object) {
+      return c.json({ error: "Not found" }, 404);
+    }
+    const headers = new Headers();
+    object.writeHttpMetadata(headers as any);
+    headers.set("etag", object.httpEtag);
+    // Short cache: same filename is reused on re-upload; clients also cache-bust query string.
+    headers.set("cache-control", "private, max-age=60, must-revalidate");
+    return c.body(object.body as any, { headers });
+  } catch (e) {
+    console.error("branding asset:", e);
+    return c.json({ error: "Failed to load asset" }, 500);
   }
 });
 
@@ -419,12 +562,12 @@ const adminMiddleware = async (c: any, next: any) => {
     return c.json({ error: "Admin authentication required" }, 401);
   }
 
-  // Use MySQL syntax: NOW() instead of datetime('now')
+  const nowExpr = sqlNowCmp(getSqlDialect(c.env));
   const { results } = await c.env.DB.prepare(
     `SELECT au.*, ads.expires_at 
      FROM admin_users au 
      JOIN admin_sessions ads ON au.id = ads.admin_id 
-     WHERE ads.session_token = ? AND ads.expires_at > NOW()`
+     WHERE ads.session_token = ? AND ads.expires_at > ${nowExpr}`
   ).bind(token).all();
 
   if (results.length === 0) {
@@ -448,10 +591,7 @@ app.get("/api/oauth/google/redirect_url", async (c) => {
   const plan = c.req.query("plan"); // Check for special plan parameter
 
   try {
-    // Construct the redirect URI - this is where Google will send the user after authentication
-    // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
-    const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-    const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
+    const redirectUri = getGoogleLoginOAuthRedirectUri(c);
 
     // Generate the Google OAuth URL
     let redirectUrl = getGoogleOAuthRedirectUrl(
@@ -576,10 +716,8 @@ app.post("/api/sessions", async (c) => {
       return c.json({ error: "Google OAuth not configured" }, 500);
     }
 
-    // Use frontend URL for redirect - Google will redirect to frontend, which will call /api/sessions
-    // IMPORTANT: This must match EXACTLY what was used in /api/oauth/google/redirect_url
-    const frontendUrl = c.env.FRONTEND_URL || 'http://localhost:5173';
-    const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URL!;
+    // IMPORTANT: redirect_uri must match EXACTLY what was used in /api/oauth/google/redirect_url
+    const redirectUri = getGoogleLoginOAuthRedirectUri(c);
 
     console.log("🔐 [OAuth] Exchanging code for tokens:", {
       hasCode: !!body.code,
@@ -982,6 +1120,140 @@ app.get("/api/admin/me", adminMiddleware, async (c) => {
   });
 });
 
+const AdminBrandingPatchSchema = z.object({
+  app_name: z.string().min(1).max(120).optional(),
+  logo_url: z.union([z.string().max(2048), z.literal("")]).optional(),
+  app_tagline: z.union([z.string().max(300), z.literal("")]).optional(),
+  logo_display_mode: z.enum(["full_logo", "icon_plus_name"]).optional(),
+  support_email: z.union([z.literal(""), z.string().email().max(255)]).optional(),
+  enterprise_price_display: z.union([z.literal(""), z.string().max(120)]).optional(),
+  pricing_free_label: z.union([z.literal(""), z.string().max(80)]).optional(),
+  pricing_pro_label: z.union([z.literal(""), z.string().max(80)]).optional(),
+});
+
+app.get("/api/admin/branding", adminMiddleware, async (c) => {
+  const row = await getWhiteLabelRow(c.env.DB);
+  return c.json({
+    app_name: row.app_name,
+    logo_url: row.logo_url,
+    logo_display_mode: row.logo_display_mode,
+    support_email: row.support_email,
+    enterprise_price_display: row.enterprise_price_display,
+    pricing_free_label: row.pricing_free_label,
+    pricing_pro_label: row.pricing_pro_label,
+  });
+});
+
+app.patch(
+  "/api/admin/branding",
+  adminMiddleware,
+  zValidator("json", AdminBrandingPatchSchema),
+  async (c) => {
+    const adminUser = c.get("admin" as any);
+    if (!adminUser.is_super_admin) {
+      return c.json({ error: "Super admin access required" }, 403);
+    }
+    const body = c.req.valid("json");
+    const updates: string[] = [];
+    const values: any[] = [];
+    const now = new Date().toISOString();
+
+    if (body.app_name !== undefined) {
+      updates.push("app_name = ?");
+      values.push(body.app_name.trim());
+    }
+    if (body.logo_url !== undefined) {
+      updates.push("logo_url = ?");
+      values.push(body.logo_url === "" ? null : body.logo_url.trim());
+    }
+    if (body.logo_display_mode !== undefined) {
+      updates.push("logo_display_mode = ?");
+      values.push(body.logo_display_mode);
+    }
+    if (body.app_tagline !== undefined) {
+      updates.push("app_tagline = ?");
+      values.push(body.app_tagline === "" ? null : body.app_tagline.trim());
+    }
+    if (body.support_email !== undefined) {
+      updates.push("support_email = ?");
+      values.push(body.support_email === "" ? null : body.support_email.trim());
+      updates.push("enterprise_contact_email = ?");
+      values.push(null);
+      updates.push("pro_contact_email = ?");
+      values.push(null);
+    }
+    if (body.enterprise_price_display !== undefined) {
+      updates.push("enterprise_price_display = ?");
+      values.push(
+        body.enterprise_price_display === "" ? null : body.enterprise_price_display.trim()
+      );
+    }
+    if (body.pricing_free_label !== undefined) {
+      updates.push("pricing_free_label = ?");
+      values.push(body.pricing_free_label === "" ? null : body.pricing_free_label.trim());
+    }
+    if (body.pricing_pro_label !== undefined) {
+      updates.push("pricing_pro_label = ?");
+      values.push(body.pricing_pro_label === "" ? null : body.pricing_pro_label.trim());
+    }
+    if (updates.length === 0) {
+      return c.json(await getWhiteLabelRow(c.env.DB));
+    }
+    updates.push("updated_at = ?");
+    values.push(now);
+    await c.env.DB.prepare(
+      `UPDATE white_label_settings SET ${updates.join(", ")} WHERE id = 1`
+    )
+      .bind(...values)
+      .run();
+
+    return c.json(await getWhiteLabelRow(c.env.DB));
+  }
+);
+
+app.post("/api/admin/branding/logo", adminMiddleware, async (c) => {
+  const adminUser = c.get("admin" as any);
+  if (!adminUser.is_super_admin) {
+    return c.json({ error: "Super admin access required" }, 403);
+  }
+  if (!c.env.R2_BUCKET) {
+    return c.json({ error: "File storage is not configured" }, 500);
+  }
+  try {
+    const formData = await c.req.formData();
+    const file = formData.get("logo") as File | null;
+    if (!file || typeof (file as any).arrayBuffer !== "function") {
+      return c.json({ error: "No file provided (field name: logo)" }, 400);
+    }
+    const f = file as File;
+    if (!f.type.startsWith("image/")) {
+      return c.json({ error: "File must be an image" }, 400);
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      return c.json({ error: "File must be under 5MB" }, 400);
+    }
+    const extRaw = (f.name.split(".").pop() || "png").toLowerCase();
+    const safeExt = ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(extRaw) ? extRaw : "png";
+    const stored = `site-logo.${safeExt}`;
+    const key = `branding/${stored}`;
+    const buf = await f.arrayBuffer();
+    await c.env.R2_BUCKET.put(key, buf, {
+      httpMetadata: { contentType: f.type || `image/${safeExt}` },
+    });
+    const publicUrl = `/api/branding/asset/${stored}`;
+    const ts = new Date().toISOString();
+    await c.env.DB.prepare(
+      "UPDATE white_label_settings SET logo_url = ?, updated_at = ? WHERE id = 1"
+    )
+      .bind(publicUrl, ts)
+      .run();
+    return c.json({ url: publicUrl, logo_url: publicUrl });
+  } catch (e: any) {
+    console.error("admin branding logo:", e);
+    return c.json({ error: "Upload failed", message: e?.message }, 500);
+  }
+});
+
 // Admin Dashboard endpoints
 app.get("/api/admin/stats", adminMiddleware, async (c) => {
   // Total users from users table
@@ -1004,10 +1276,10 @@ app.get("/api/admin/stats", adminMiddleware, async (c) => {
     "SELECT COALESCE(SUM(duration_minutes), 0) as total FROM focus_sessions WHERE session_type = 'focus' AND end_time IS NOT NULL"
   ).all();
 
-  // Active users (users with activity in last 7 days)
-  // Use MySQL DATE_SUB instead of JavaScript date calculation
+  const dialect = getSqlDialect(c.env);
+  const sevenAgo = sqlSevenDaysAgo(dialect);
   const { results: activeUsers } = await c.env.DB.prepare(
-    "SELECT COUNT(DISTINCT user_id) as count FROM users WHERE last_login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+    `SELECT COUNT(DISTINCT user_id) as count FROM users WHERE last_login_at >= ${sevenAgo}`
   ).all();
 
   return c.json({
@@ -2125,6 +2397,7 @@ app.get("/api/analytics", authMiddleware, async (c) => {
   const user = c.get("user");
   const from = c.req.query("from");
   const to = c.req.query("to");
+  const liveMin = sqlLiveSessionMinutes("start_time", getSqlDialect(c.env));
 
   let query = `
     SELECT 
@@ -2133,7 +2406,7 @@ app.get("/api/analytics", authMiddleware, async (c) => {
       SUM(
         CASE 
           WHEN end_time IS NOT NULL THEN duration_minutes
-          ELSE TIMESTAMPDIFF(MINUTE, start_time, NOW())
+          ELSE ${liveMin}
         END
       ) as total_minutes,
       session_type
@@ -2245,25 +2518,24 @@ app.get("/api/dashboard-stats", authMiddleware, async (c) => {
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    // Today's focus time (including active sessions)
-    // MySQL: Use TIMESTAMPDIFF instead of julianday
+    const liveMin = sqlLiveSessionMinutes("start_time", getSqlDialect(c.env));
+
     const { results: todayResults } = await c.env.DB.prepare(`
       SELECT COALESCE(SUM(
         CASE 
           WHEN end_time IS NOT NULL THEN duration_minutes
-          ELSE TIMESTAMPDIFF(MINUTE, start_time, NOW())
+          ELSE ${liveMin}
         END
       ), 0) as total_minutes
       FROM focus_sessions
       WHERE user_id = ? AND session_type = 'focus' AND start_time >= ?
     `).bind(user!.id, todayStart).all();
 
-    // Week's focus time (including active sessions)
     const { results: weekResults } = await c.env.DB.prepare(`
       SELECT COALESCE(SUM(
         CASE 
           WHEN end_time IS NOT NULL THEN duration_minutes
-          ELSE TIMESTAMPDIFF(MINUTE, start_time, NOW())
+          ELSE ${liveMin}
         END
       ), 0) as total_minutes
       FROM focus_sessions
@@ -2338,6 +2610,7 @@ app.get("/api/dashboard-stats", authMiddleware, async (c) => {
 app.get("/api/analytics/by-mode", authMiddleware, async (c) => {
   const user = c.get("user");
   const from = c.req.query("from");
+  const liveMin = sqlLiveSessionMinutes("start_time", getSqlDialect(c.env));
 
   let query = `
     SELECT 
@@ -2346,7 +2619,7 @@ app.get("/api/analytics/by-mode", authMiddleware, async (c) => {
       SUM(
         CASE 
           WHEN end_time IS NOT NULL THEN duration_minutes
-          ELSE TIMESTAMPDIFF(MINUTE, start_time, NOW())
+          ELSE ${liveMin}
         END
       ) as total_minutes
     FROM focus_sessions
@@ -2369,6 +2642,7 @@ app.get("/api/analytics/by-mode", authMiddleware, async (c) => {
 app.get("/api/analytics/by-project", authMiddleware, async (c) => {
   const user = c.get("user");
   const from = c.req.query("from");
+  const liveMin = sqlLiveSessionMinutes("fs.start_time", getSqlDialect(c.env));
 
   let query = `
     SELECT 
@@ -2376,7 +2650,7 @@ app.get("/api/analytics/by-project", authMiddleware, async (c) => {
       SUM(
         CASE 
           WHEN fs.end_time IS NOT NULL THEN fs.duration_minutes
-          ELSE TIMESTAMPDIFF(MINUTE, fs.start_time, NOW())
+          ELSE ${liveMin}
         END
       ) as total_minutes
     FROM focus_sessions fs

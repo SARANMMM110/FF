@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { apiFetch } from '@/react-app/utils/api';
 
 export interface User {
@@ -39,12 +39,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isPending, setIsPending] = useState(true);
 
-  // Check authentication on mount
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const response = await apiFetch('api/users/me');
 
@@ -52,14 +47,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const userData = await response.json();
         setUser(userData);
       } else {
-        // 401 is expected when not logged in - not an error
         if (response.status !== 401) {
           console.warn('Auth check returned status:', response.status);
         }
         setUser(null);
       }
     } catch (error) {
-      // Only log if it's not a network error (backend might not be running)
       if (error instanceof TypeError && error.message.includes('fetch')) {
         console.warn('Backend not reachable - make sure backend server is running on port 3000');
       } else {
@@ -69,7 +62,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsPending(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void checkAuth();
+  }, [checkAuth]);
 
   const redirectToLogin = async () => {
     try {
@@ -89,7 +86,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const exchangeCodeForSessionToken = async (code: string) => {
+  const exchangeCodeForSessionToken = useCallback(async (code: string) => {
     try {
       const response = await apiFetch('api/sessions', {
         method: 'POST',
@@ -101,13 +98,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw new Error(error.message || 'Failed to exchange code');
       }
 
-      // Refresh user data after successful login
       await checkAuth();
     } catch (error) {
       console.error('Failed to exchange code:', error);
       throw error;
     }
-  };
+  }, [checkAuth]);
 
   const logout = async () => {
     try {

@@ -1,11 +1,14 @@
 import { useEffect } from "react";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "@/react-app/contexts/AuthContext";
-import { Loader2, Zap } from "lucide-react";
+import { useBranding } from "@/react-app/contexts/BrandingContext";
+import { Loader2 } from "lucide-react";
+import Logo from "@/react-app/components/Logo";
 
 export default function Register() {
   const navigate = useNavigate();
   const { redirectToLogin, user, isPending } = useAuth();
+  const { replaceAppName } = useBranding();
 
   useEffect(() => {
     // If already logged in, redirect to dashboard
@@ -34,20 +37,15 @@ export default function Register() {
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-12 h-12 bg-gradient-to-br from-[#E50914] to-[#FFD400] rounded-xl flex items-center justify-center shadow-lg shadow-[#E50914]/50">
-            <Zap className="w-7 h-7 text-black" strokeWidth={2.5} />
-          </div>
-          <span className="text-2xl font-bold bg-gradient-to-r from-[#E50914] to-[#FFD400] bg-clip-text text-transparent">
-            FocusFlow
-          </span>
+        <div className="flex items-center justify-center mb-8">
+          <Logo size="lg" />
         </div>
 
         {/* Register Card */}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-2">Create Account</h1>
-            <p className="text-gray-400">Join FocusFlow and start being productive</p>
+            <p className="text-gray-400">{replaceAppName("Join FocusFlow and start being productive")}</p>
           </div>
 
           <button

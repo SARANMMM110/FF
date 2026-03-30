@@ -1,4 +1,12 @@
+import { useBranding } from "@/react-app/contexts/BrandingContext";
+
 export default function PrivacyPolicy() {
+  const { appName } = useBranding();
+  const currentYear = new Date().getFullYear();
+  const lastUpdatedLabel = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-black dark:to-gray-800">
       <div className="max-w-4xl mx-auto px-6 py-12">
@@ -8,7 +16,7 @@ export default function PrivacyPolicy() {
             Privacy Policy
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Last updated: December 2024
+            Last updated: {lastUpdatedLabel}
           </p>
         </div>
 
@@ -17,7 +25,7 @@ export default function PrivacyPolicy() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-800 mb-8">
             <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Introduction</h2>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              FocusFlow ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our productivity application.
+              {appName} ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our productivity application.
             </p>
           </div>
 
@@ -49,7 +57,7 @@ export default function PrivacyPolicy() {
 
             <h3 className="text-xl font-semibold mb-3 text-gray-900 dark:text-white mt-6">Usage Data</h3>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-              We collect information about how you use FocusFlow:
+              We collect information about how you use {appName}:
             </p>
             <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-2">
               <li>Tasks you create and complete</li>
@@ -78,7 +86,7 @@ export default function PrivacyPolicy() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-800 mb-8">
             <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Google API Services User Data Policy</h2>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-              FocusFlow's use of information received from Google APIs adheres to the{' '}
+              {appName}'s use of information received from Google APIs adheres to the{' '}
               <a 
                 href="https://developers.google.com/terms/api-services-user-data-policy" 
                 target="_blank" 
@@ -90,7 +98,7 @@ export default function PrivacyPolicy() {
               , including the Limited Use requirements.
             </p>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              We will only use access to read data from your Google Calendar to provide features within FocusFlow. We will not transfer this data to others unless necessary to provide and improve FocusFlow's features, comply with applicable law, or as part of a merger, acquisition, or sale of assets. We will not use this data for serving advertisements.
+              We will only use access to read data from your Google Calendar to provide features within {appName}. We will not transfer this data to others unless necessary to provide and improve {appName}'s features, comply with applicable law, or as part of a merger, acquisition, or sale of assets. We will not use this data for serving advertisements.
             </p>
           </div>
 
@@ -149,7 +157,7 @@ export default function PrivacyPolicy() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-800 mb-8">
             <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Third-Party Services</h2>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-              FocusFlow integrates with the following third-party services:
+              {appName} integrates with the following third-party services:
             </p>
             <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-2">
               <li><strong>Google OAuth & Calendar API:</strong> For authentication and calendar integration</li>
@@ -163,7 +171,7 @@ export default function PrivacyPolicy() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-800 mb-8">
             <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Children's Privacy</h2>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              FocusFlow is not intended for use by children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe we have collected information from a child under 13, please contact us immediately.
+              {appName} is not intended for use by children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe we have collected information from a child under 13, please contact us immediately.
             </p>
           </div>
 
@@ -173,33 +181,12 @@ export default function PrivacyPolicy() {
               We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last updated" date. You are advised to review this Privacy Policy periodically for any changes. Changes to this Privacy Policy are effective when posted on this page.
             </p>
           </div>
-
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-800">
-            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Contact Us</h2>
-            <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-              If you have any questions about this Privacy Policy or our data practices, please contact us:
-            </p>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-              <p className="text-gray-700 dark:text-gray-300">
-                <strong>Email:</strong>{' '}
-                <a href="mailto:privacy@focusflow.app" className="text-[#E50914] hover:underline">
-                  privacy@focusflow.app
-                </a>
-              </p>
-              <p className="text-gray-700 dark:text-gray-300 mt-2">
-                <strong>Website:</strong>{' '}
-                <a href="https://focusflow.app" className="text-[#E50914] hover:underline" target="_blank" rel="noopener noreferrer">
-                  https://focusflow.app
-                </a>
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
         <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800">
           <p className="text-center text-gray-500 dark:text-gray-400 text-sm">
-            © 2024 FocusFlow. All rights reserved.
+            © {currentYear} {appName}. All rights reserved.
           </p>
         </div>
       </div>

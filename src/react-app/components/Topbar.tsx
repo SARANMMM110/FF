@@ -4,17 +4,17 @@ import { useTheme } from "@/react-app/contexts/ThemeContext";
 import { useProfileContext } from "@/react-app/contexts/ProfileContext";
 import GlobalTimerWidget from "@/react-app/components/GlobalTimerWidget";
 import { apiFetch } from "@/react-app/utils/api";
-import { 
-  Zap, 
-  Moon, 
-  Sun, 
-  LogOut, 
-  User, 
-  Settings, 
+import Logo from "@/react-app/components/Logo";
+import {
+  Moon,
+  Sun,
+  LogOut,
+  User,
+  Settings,
   Flame,
   Menu,
   Crown,
-  Sparkles
+  Sparkles,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -125,14 +125,9 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
           {/* Logo */}
           <button
             onClick={() => navigate("/dashboard")}
-            className="flex items-center gap-3 group"
+            className="flex items-center gap-3 group group-hover:opacity-95 transition-opacity"
           >
-            <div className="w-9 h-9 bg-gradient-to-br from-[#E50914] to-[#FFD400] rounded-xl flex items-center justify-center shadow-lg shadow-[#E50914]/30 group-hover:shadow-[#E50914]/50 transition-all duration-300 group-hover:scale-105">
-              <Zap className="w-5 h-5 text-black" strokeWidth={2.5} />
-            </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-[#E50914] to-[#FFD400] bg-clip-text text-transparent">
-              FocusFlow
-            </span>
+            <Logo size="sm" showText className="gap-2" />
           </button>
         </div>
 

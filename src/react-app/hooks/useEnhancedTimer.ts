@@ -115,27 +115,27 @@ export function useEnhancedTimer(
       return;
     }
 
+    const sid = currentSessionId;
     try {
       const duration = Math.round((getDuration(mode) - secondsLeft) / 60);
-      console.log("📝 [Timer] Ending session:", currentSessionId, "Duration:", duration, "minutes");
-      
-      const response = await fetch(`/api/focus-sessions/${currentSessionId}`, {
+      console.log("📝 [Timer] Ending session:", sid, "Duration:", duration, "minutes");
+
+      const response = await apiFetch(`api/focus-sessions/${sid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           end_time: new Date().toISOString(),
-          duration_minutes: duration,
+          duration_minutes: Math.max(0, duration),
           notes: sessionNotes || null,
         }),
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error("❌ [Timer] Failed to end session:", response.status, errorText);
         throw new Error(`Failed to end session: ${response.status}`);
       }
-      
+
       console.log("✅ [Timer] Session ended successfully");
       setCurrentSessionId(null);
       setSessionNotes("");
@@ -145,50 +145,57 @@ export function useEnhancedTimer(
   };
 
   const start = async (taskId?: number) => {
-    if (!isRunning) {
-      setIsRunning(true);
+    if (isRunning) return;
+    try {
       await startSession(taskId);
+      setIsRunning(true);
+    } catch (err) {
+      console.error("❌ [Timer] Error starting session:", err);
     }
   };
 
-  const pause = async () => {
+  /** Stops the clock. If true, focus session was already PATCH-closed (long pause). */
+  const pause = async (): Promise<boolean> => {
     setIsRunning(false);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    
-    // Save progress when pausing
+
     if (currentSessionId && mode === "focus") {
       const elapsed = getDuration(mode) - secondsLeft;
-      if (elapsed > 30) { // Only save if at least 30 seconds of work
+      if (elapsed > 30) {
         const duration = Math.round(elapsed / 60);
         console.log("⏸️ [Timer] Pausing - saving session progress:", duration, "minutes");
-        
+
         try {
-          await fetch(`/api/focus-sessions/${currentSessionId}`, {
+          const response = await apiFetch(`api/focus-sessions/${currentSessionId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            credentials: "include",
             body: JSON.stringify({
               end_time: new Date().toISOString(),
               duration_minutes: duration,
               notes: sessionNotes || null,
             }),
           });
-          
-          console.log("✅ [Timer] Session progress saved on pause");
-          setCurrentSessionId(null);
+
+          if (response.ok) {
+            console.log("✅ [Timer] Session progress saved on pause");
+            setCurrentSessionId(null);
+            return true;
+          }
+          console.error("❌ [Timer] Failed to save session on pause:", response.status);
         } catch (err) {
           console.error("❌ [Timer] Failed to save session on pause:", err);
         }
       }
     }
+    return false;
   };
 
   const reset = async () => {
-    pause();
-    if (currentSessionId) {
+    const closedOnPause = await pause();
+    if (!closedOnPause && currentSessionId) {
       await endSession();
     }
     setSecondsLeft(getDuration(mode));
