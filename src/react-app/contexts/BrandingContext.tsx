@@ -49,11 +49,14 @@ export type BrandingState = {
   appName: string;
   logoUrl: string | null;
   logoDisplayMode: LogoDisplayMode;
-  /** Contact email from admin (Email). Used for upgrade and pricing mailto links. */
+  /** Contact email from admin (Email). Used for general contact links. */
   clientEmail: string | null;
   enterprisePriceDisplay: string | null;
   pricingFreeDisplay: string | null;
   pricingProDisplay: string | null;
+  /** HTTPS checkout link from Admin → Pricing; opens when users choose Buy Pro. */
+  proPaymentUrl: string | null;
+  enterprisePaymentUrl: string | null;
   freePriceLabel: string;
   proPriceLabel: string;
   enterprisePriceLabel: string;
@@ -80,6 +83,8 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   const [enterprisePriceDisplay, setEnterprisePriceDisplay] = useState<string | null>(null);
   const [pricingFreeDisplay, setPricingFreeDisplay] = useState<string | null>(null);
   const [pricingProDisplay, setPricingProDisplay] = useState<string | null>(null);
+  const [proPaymentUrl, setProPaymentUrl] = useState<string | null>(null);
+  const [enterprisePaymentUrl, setEnterprisePaymentUrl] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const staticSocialImages = useRef<{ og: string | null; twitter: string | null }>({
     og: null,
@@ -128,6 +133,16 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
         setPricingProDisplay(
           typeof data.pricing_pro_label === "string" && data.pricing_pro_label.trim()
             ? data.pricing_pro_label.trim()
+            : null
+        );
+        setProPaymentUrl(
+          typeof data.payment_pro_url === "string" && data.payment_pro_url.trim()
+            ? data.payment_pro_url.trim()
+            : null
+        );
+        setEnterprisePaymentUrl(
+          typeof data.payment_enterprise_url === "string" && data.payment_enterprise_url.trim()
+            ? data.payment_enterprise_url.trim()
             : null
         );
       }
@@ -185,6 +200,8 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       enterprisePriceDisplay,
       pricingFreeDisplay,
       pricingProDisplay,
+      proPaymentUrl,
+      enterprisePaymentUrl,
       freePriceLabel,
       proPriceLabel,
       enterprisePriceLabel,
@@ -200,6 +217,8 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       enterprisePriceDisplay,
       pricingFreeDisplay,
       pricingProDisplay,
+      proPaymentUrl,
+      enterprisePaymentUrl,
       freePriceLabel,
       proPriceLabel,
       enterprisePriceLabel,

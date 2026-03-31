@@ -95,6 +95,8 @@ export default function AdminDashboardPage() {
     pricing_free_label: "",
     pricing_pro_label: "",
     enterprise_price_display: "",
+    payment_pro_url: "",
+    payment_enterprise_url: "",
     support_email: "",
   });
   const [identitySaving, setIdentitySaving] = useState(false);
@@ -112,6 +114,8 @@ export default function AdminDashboardPage() {
     pricing_free_label: String(d.pricing_free_label ?? ""),
     pricing_pro_label: String(d.pricing_pro_label ?? ""),
     enterprise_price_display: String(d.enterprise_price_display ?? ""),
+    payment_pro_url: String(d.payment_pro_url ?? ""),
+    payment_enterprise_url: String(d.payment_enterprise_url ?? ""),
     support_email: String(d.support_email ?? ""),
   });
 
@@ -437,11 +441,27 @@ export default function AdminDashboardPage() {
 
   const savePricingSection = async () => {
     if (!admin?.is_super_admin) return;
+    const proUrl = brandForm.payment_pro_url.trim();
+    const entUrl = brandForm.payment_enterprise_url.trim();
+    const checkUrl = (label: string, u: string) => {
+      if (!u) return true;
+      try {
+        const parsed = new URL(u);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch {
+        showError(`${label} must be a full URL starting with https:// (or http://).`);
+        return false;
+      }
+    };
+    if (!checkUrl("Pro payment link", proUrl)) return;
+    if (!checkUrl("Enterprise payment link", entUrl)) return;
     await patchBranding(
       {
         pricing_free_label: brandForm.pricing_free_label.trim(),
         pricing_pro_label: brandForm.pricing_pro_label.trim(),
         enterprise_price_display: brandForm.enterprise_price_display.trim(),
+        payment_pro_url: proUrl,
+        payment_enterprise_url: entUrl,
       },
       setPricingSaving,
       "Pricing saved"
@@ -694,7 +714,8 @@ export default function AdminDashboardPage() {
                 <h2 className="text-xl font-bold text-white">Pricing (public page)</h2>
               </div>
               <p className="text-gray-400 text-sm mb-4">
-                These lines appear on the three plan cards (Free Forever, Pro, Enterprise). Leave blank to use built-in defaults (Free, $9/month, $29/month).
+                Price lines appear on each plan card (leave blank for defaults: Free, $9/month, $29/month).
+                Buy Pro and Buy Enterprise open the checkout URLs you set below (Stripe, Paddle, etc.).
               </p>
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
@@ -731,6 +752,32 @@ export default function AdminDashboardPage() {
                   />
                 </div>
               </div>
+              <div className="grid gap-4 md:grid-cols-2 mt-4">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Pro — checkout URL</label>
+                  <input
+                    type="url"
+                    value={brandForm.payment_pro_url}
+                    onChange={(e) =>
+                      setBrandForm((p) => ({ ...p, payment_pro_url: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                    placeholder="https://buy.stripe.com/…"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Enterprise — checkout URL</label>
+                  <input
+                    type="url"
+                    value={brandForm.payment_enterprise_url}
+                    onChange={(e) =>
+                      setBrandForm((p) => ({ ...p, payment_enterprise_url: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20 text-white"
+                    placeholder="https://…"
+                  />
+                </div>
+              </div>
               <div className="flex justify-end mt-4">
                 <button
                   type="button"
@@ -749,7 +796,7 @@ export default function AdminDashboardPage() {
                 <h2 className="text-xl font-bold text-white">Email</h2>
               </div>
               <p className="text-gray-400 text-sm mb-4">
-                This email is used across the app, including contact links wherever they appear.
+                Optional support contact for mailto links on the pricing page and in upgrade prompts.
               </p>
               <div className="max-w-xl">
                 <label className="block text-xs text-gray-400 mb-1">Email</label>

@@ -55,6 +55,19 @@ function trimStr(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
+/** Returns null if empty or not a safe http(s) URL. */
+function normalizePaymentUrl(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  try {
+    const u = new URL(t);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
 const LOGO_DISPLAY_MODES = ["full_logo", "icon_plus_name"] as const;
 type LogoDisplayMode = (typeof LOGO_DISPLAY_MODES)[number];
 
@@ -72,12 +85,14 @@ async function getWhiteLabelRow(db: any): Promise<{
   enterprise_price_display: string | null;
   pricing_free_label: string | null;
   pricing_pro_label: string | null;
+  payment_pro_url: string | null;
+  payment_enterprise_url: string | null;
 }> {
   try {
     const { results } = await db
       .prepare(
         `SELECT app_name, logo_url, logo_display_mode, support_email, enterprise_price_display,
-          pricing_free_label, pricing_pro_label
+          pricing_free_label, pricing_pro_label, payment_pro_url, payment_enterprise_url
          FROM white_label_settings WHERE id = 1`
       )
       .all();
@@ -90,6 +105,8 @@ async function getWhiteLabelRow(db: any): Promise<{
         enterprise_price_display: null,
         pricing_free_label: null,
         pricing_pro_label: null,
+        payment_pro_url: null,
+        payment_enterprise_url: null,
       };
     }
     const row = results[0] as any;
@@ -101,6 +118,8 @@ async function getWhiteLabelRow(db: any): Promise<{
       enterprise_price_display: trimStr(row.enterprise_price_display),
       pricing_free_label: trimStr(row.pricing_free_label),
       pricing_pro_label: trimStr(row.pricing_pro_label),
+      payment_pro_url: trimStr(row.payment_pro_url),
+      payment_enterprise_url: trimStr(row.payment_enterprise_url),
     };
   } catch {
     return {
@@ -111,6 +130,8 @@ async function getWhiteLabelRow(db: any): Promise<{
       enterprise_price_display: null,
       pricing_free_label: null,
       pricing_pro_label: null,
+      payment_pro_url: null,
+      payment_enterprise_url: null,
     };
   }
 }
@@ -225,6 +246,8 @@ app.get("/api/branding", async (c) => {
     enterprise_price_display: row.enterprise_price_display,
     pricing_free_label: row.pricing_free_label,
     pricing_pro_label: row.pricing_pro_label,
+    payment_pro_url: row.payment_pro_url,
+    payment_enterprise_url: row.payment_enterprise_url,
   });
 });
 
@@ -1129,6 +1152,8 @@ const AdminBrandingPatchSchema = z.object({
   enterprise_price_display: z.union([z.literal(""), z.string().max(120)]).optional(),
   pricing_free_label: z.union([z.literal(""), z.string().max(80)]).optional(),
   pricing_pro_label: z.union([z.literal(""), z.string().max(80)]).optional(),
+  payment_pro_url: z.union([z.literal(""), z.string().max(2048)]).optional(),
+  payment_enterprise_url: z.union([z.literal(""), z.string().max(2048)]).optional(),
 });
 
 app.get("/api/admin/branding", adminMiddleware, async (c) => {
@@ -1141,6 +1166,8 @@ app.get("/api/admin/branding", adminMiddleware, async (c) => {
     enterprise_price_display: row.enterprise_price_display,
     pricing_free_label: row.pricing_free_label,
     pricing_pro_label: row.pricing_pro_label,
+    payment_pro_url: row.payment_pro_url,
+    payment_enterprise_url: row.payment_enterprise_url,
   });
 });
 
@@ -1195,6 +1222,40 @@ app.patch(
     if (body.pricing_pro_label !== undefined) {
       updates.push("pricing_pro_label = ?");
       values.push(body.pricing_pro_label === "" ? null : body.pricing_pro_label.trim());
+    }
+    if (body.payment_pro_url !== undefined) {
+      const trimmed = body.payment_pro_url.trim();
+      if (trimmed === "") {
+        updates.push("payment_pro_url = ?");
+        values.push(null);
+      } else {
+        const normalized = normalizePaymentUrl(body.payment_pro_url);
+        if (!normalized) {
+          return c.json(
+            { error: "Invalid Pro payment URL. Use a full https:// (or http://) link." },
+            400
+          );
+        }
+        updates.push("payment_pro_url = ?");
+        values.push(normalized);
+      }
+    }
+    if (body.payment_enterprise_url !== undefined) {
+      const trimmed = body.payment_enterprise_url.trim();
+      if (trimmed === "") {
+        updates.push("payment_enterprise_url = ?");
+        values.push(null);
+      } else {
+        const normalized = normalizePaymentUrl(body.payment_enterprise_url);
+        if (!normalized) {
+          return c.json(
+            { error: "Invalid Enterprise payment URL. Use a full https:// (or http://) link." },
+            400
+          );
+        }
+        updates.push("payment_enterprise_url = ?");
+        values.push(normalized);
+      }
     }
     if (updates.length === 0) {
       return c.json(await getWhiteLabelRow(c.env.DB));

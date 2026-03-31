@@ -423,6 +423,8 @@ CREATE TABLE IF NOT EXISTS white_label_settings (
   pricing_free_label TEXT,
   pricing_pro_label TEXT,
   pro_contact_email TEXT,
+  payment_pro_url TEXT,
+  payment_enterprise_url TEXT,
   logo_display_mode TEXT DEFAULT 'icon_plus_name',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

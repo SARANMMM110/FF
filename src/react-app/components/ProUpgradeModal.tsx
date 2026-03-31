@@ -1,4 +1,4 @@
-import { X, Crown, Sparkles, Check, ArrowRight, Mail } from "lucide-react";
+import { X, Crown, Sparkles, Check, ArrowRight } from "lucide-react";
 import { useBranding } from "@/react-app/contexts/BrandingContext";
 
 interface ProUpgradeModalProps {
@@ -14,12 +14,12 @@ const PRO_FEATURES = [
   "Custom themes and colors",
   "Advanced automation rules",
   "Time tracking insights",
-  "Priority email support",
-  "Unlimited projects and tags"
+  "Priority support",
+  "Unlimited projects and tags",
 ];
 
 export default function ProUpgradeModal({ isOpen, onClose, feature }: ProUpgradeModalProps) {
-  const { appName, clientEmail, proPriceLabel } = useBranding();
+  const { clientEmail, proPriceLabel, proPaymentUrl } = useBranding();
 
   if (!isOpen) return null;
 
@@ -27,22 +27,12 @@ export default function ProUpgradeModal({ isOpen, onClose, feature }: ProUpgrade
     window.location.href = "/#pricing";
   };
 
-  const handleEmailClient = () => {
-    if (!clientEmail) return;
-    const subject = encodeURIComponent(`Pro upgrade — ${appName}`);
-    const body = encodeURIComponent(
-      `Hello,\n\nI'm interested in upgrading to Pro for ${appName}.\n` +
-        `The price shown in the app is: ${proPriceLabel}\n\nName:\nNotes:\n`
-    );
-    window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="relative w-full max-w-2xl bg-gradient-to-br from-gray-900 to-black border-2 border-[#FFD400]/30 rounded-3xl shadow-2xl overflow-hidden">
         {/* Animated background */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#E50914]/10 to-[#FFD400]/10 animate-pulse"></div>
-        
+
         {/* Close button */}
         <button
           onClick={onClose}
@@ -70,7 +60,7 @@ export default function ProUpgradeModal({ isOpen, onClose, feature }: ProUpgrade
           {/* Features Grid */}
           <div className="grid sm:grid-cols-2 gap-3 mb-8">
             {PRO_FEATURES.map((feat, index) => (
-              <div 
+              <div
                 key={index}
                 className="flex items-start gap-3 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
               >
@@ -95,32 +85,24 @@ export default function ProUpgradeModal({ isOpen, onClose, feature }: ProUpgrade
                 <Sparkles className="w-6 h-6 text-black" />
               </div>
             </div>
-            <p className="text-gray-300 text-sm">
-              Join thousands of productive professionals
-            </p>
+            <p className="text-gray-300 text-sm">Join thousands of productive professionals</p>
           </div>
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4">
-            {clientEmail ? (
-              <button
-                type="button"
-                onClick={handleEmailClient}
-                className="flex-1 group px-8 py-4 bg-gradient-to-r from-[#E50914] to-[#FFD400] rounded-xl font-bold text-lg text-black hover:shadow-2xl hover:shadow-[#E50914]/50 transition-all duration-300 hover:scale-105"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <Mail className="w-5 h-5" />
-                  Email to upgrade
-                </span>
-              </button>
-            ) : null}
+            <a
+              href={proPaymentUrl || "#"}
+              onClick={proPaymentUrl ? undefined : (e) => e.preventDefault()}
+              className="flex-1 group px-8 py-4 bg-gradient-to-r from-[#E50914] to-[#FFD400] rounded-xl font-bold text-lg text-black no-underline hover:shadow-2xl hover:shadow-[#E50914]/50 transition-all duration-300 hover:scale-105 inline-flex items-center justify-center"
+            >
+              <span className="flex items-center justify-center gap-2">
+                Subscribe
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </span>
+            </a>
             <button
               onClick={handleUpgrade}
-              className={`group px-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-105 ${
-                clientEmail
-                  ? "flex-1 bg-gray-800 hover:bg-gray-700 text-white border border-gray-600"
-                  : "flex-1 bg-gradient-to-r from-[#E50914] to-[#FFD400] text-black hover:shadow-2xl hover:shadow-[#E50914]/50"
-              }`}
+              className="group flex-1 px-8 py-4 rounded-xl font-bold text-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 transition-all duration-300 hover:scale-105"
             >
               <span className="flex items-center justify-center gap-2">
                 View pricing
@@ -137,21 +119,15 @@ export default function ProUpgradeModal({ isOpen, onClose, feature }: ProUpgrade
 
           {clientEmail ? (
             <p className="text-center text-gray-400 text-sm mt-4">
-              Contact:{" "}
+              Questions?{" "}
               <a href={`mailto:${clientEmail}`} className="text-[#FFD400] hover:underline break-all">
                 {clientEmail}
               </a>
             </p>
-          ) : (
-            <p className="text-center text-amber-200/80 text-sm mt-4">
-              Add your contact email under Admin → Email so people can reach you from here.
-            </p>
-          )}
+          ) : null}
 
           {/* Footer note */}
-          <p className="text-center text-gray-500 text-sm mt-6">
-            Cancel anytime. No questions asked.
-          </p>
+          <p className="text-center text-gray-500 text-sm mt-6">Cancel anytime. No questions asked.</p>
         </div>
       </div>
     </div>

@@ -35,7 +35,7 @@ const plans = [
       "Notion integration & sync",
       "Calendar integration",
       "Team collaboration features",
-      "Priority email support",
+      "Priority support",
       "Custom themes and colors",
       "Advanced automation rules",
       "Time tracking insights",
@@ -76,8 +76,13 @@ interface PricingPlansProps {
 }
 
 export default function PricingPlans({ className = "" }: PricingPlansProps) {
-  const { appName, clientEmail, freePriceLabel, proPriceLabel, enterprisePriceLabel } =
-    useBranding();
+  const {
+    freePriceLabel,
+    proPriceLabel,
+    enterprisePriceLabel,
+    proPaymentUrl,
+    enterprisePaymentUrl,
+  } = useBranding();
 
   const priceLabelFor = (planId: string) => {
     if (planId === "free") return freePriceLabel;
@@ -85,53 +90,12 @@ export default function PricingPlans({ className = "" }: PricingPlansProps) {
     return enterprisePriceLabel;
   };
 
-  const openBuyPlanEmail = (
-    planLabel: "Pro" | "Enterprise",
-    priceAsShown: string
-  ) => {
-    if (!clientEmail) {
-      alert(
-        "No contact email is set yet. Ask your administrator to add one under Admin → Email."
-      );
-      return;
-    }
-    try {
-      const subject = encodeURIComponent(`${appName} — ${planLabel} — payment link request`);
-      const body = encodeURIComponent(
-        `Hello,\n\n` +
-          `I would like to subscribe to ${appName} and am writing to request a payment link.\n\n` +
-          `Details:\n` +
-          `• Selected plan: ${planLabel}\n` +
-          `• Price shown on the pricing page: ${priceAsShown}\n\n` +
-          `Please send me a secure payment link (or next steps to complete checkout) for this plan.\n\n` +
-          `Thank you,\n`
-      );
-      window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
-    } catch (error) {
-      console.error("Email link error:", error);
-      alert(`Could not open email. Please write to: ${clientEmail}`);
-    }
-  };
-
-  const handleSelectPlan = (planId: string) => {
-    if (planId === "free") {
-      try {
-        window.location.href = "/auth/register";
-      } catch (error) {
-        console.error("Navigation error:", error);
-      }
-      return;
-    }
-
-    if (planId === "enterprise") {
-      openBuyPlanEmail("Enterprise", enterprisePriceLabel);
-      return;
-    }
-
-    if (planId === "pro") {
-      openBuyPlanEmail("Pro", proPriceLabel);
-    }
-  };
+  const ctaClasses = (popular: boolean) =>
+    `flex w-full items-center justify-center gap-2 py-4 rounded-xl font-semibold no-underline transition-all duration-300 hover:scale-[1.02] ${
+      popular
+        ? "bg-gradient-to-r from-[#E50914] to-[#FFD400] text-black hover:shadow-lg hover:shadow-[#E50914]/50"
+        : "bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+    }`;
 
   return (
     <div className={`max-w-7xl mx-auto ${className}`}>
@@ -176,20 +140,31 @@ export default function PricingPlans({ className = "" }: PricingPlansProps) {
                 ))}
               </ul>
 
-              {/* CTA Button */}
-              <button
-                onClick={() => handleSelectPlan(plan.id)}
-                className={`w-full py-4 rounded-xl font-semibold transition-all duration-300 hover:scale-[1.02] ${
-                  plan.popular
-                    ? "bg-gradient-to-r from-[#E50914] to-[#FFD400] text-black hover:shadow-lg hover:shadow-[#E50914]/50"
-                    : "bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
-                }`}
-              >
-                <span className="flex items-center justify-center gap-2">
+              {/* CTA: paid plans use payment URL or href="#" (no navigation, no alert) */}
+              {plan.id === "free" ? (
+                <a href="/auth/register" className={ctaClasses(plan.popular)}>
                   {plan.buttonText}
                   <ArrowRight className="w-4 h-4" />
-                </span>
-              </button>
+                </a>
+              ) : plan.id === "pro" ? (
+                <a
+                  href={proPaymentUrl || "#"}
+                  onClick={proPaymentUrl ? undefined : (e) => e.preventDefault()}
+                  className={ctaClasses(plan.popular)}
+                >
+                  {plan.buttonText}
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+              ) : (
+                <a
+                  href={enterprisePaymentUrl || "#"}
+                  onClick={enterprisePaymentUrl ? undefined : (e) => e.preventDefault()}
+                  className={ctaClasses(plan.popular)}
+                >
+                  {plan.buttonText}
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+              )}
             </div>
           </div>
         ))}
