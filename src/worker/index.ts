@@ -1270,15 +1270,17 @@ app.patch(
         .run();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
+      const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code?: string }).code) : "";
       console.error("PATCH /api/admin/branding:", e);
-      if (
-        /no such column:\s*payment_(pro|enterprise)_url/i.test(msg) ||
-        /Unknown column ['"]?payment_(pro|enterprise)_url/i.test(msg)
-      ) {
+      const missingColumn =
+        /no such column/i.test(msg) ||
+        /Unknown column/i.test(msg) ||
+        code === "ER_BAD_FIELD_ERROR";
+      if (missingColumn) {
         return c.json(
           {
             error:
-              "Database is missing payment link columns. Apply D1 migration 30 (payment_pro_url, payment_enterprise_url on white_label_settings), then deploy again.",
+              "white_label_settings is missing columns (MySQL: run migrations/mysql-white-label-settings-columns.sql, or sync from schema.mysql.sql. D1: wrangler d1 migrations apply).",
           },
           500
         );
