@@ -1262,11 +1262,29 @@ app.patch(
     }
     updates.push("updated_at = ?");
     values.push(now);
-    await c.env.DB.prepare(
-      `UPDATE white_label_settings SET ${updates.join(", ")} WHERE id = 1`
-    )
-      .bind(...values)
-      .run();
+    try {
+      await c.env.DB.prepare(
+        `UPDATE white_label_settings SET ${updates.join(", ")} WHERE id = 1`
+      )
+        .bind(...values)
+        .run();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("PATCH /api/admin/branding:", e);
+      if (
+        /no such column:\s*payment_(pro|enterprise)_url/i.test(msg) ||
+        /Unknown column ['"]?payment_(pro|enterprise)_url/i.test(msg)
+      ) {
+        return c.json(
+          {
+            error:
+              "Database is missing payment link columns. Apply D1 migration 30 (payment_pro_url, payment_enterprise_url on white_label_settings), then deploy again.",
+          },
+          500
+        );
+      }
+      return c.json({ error: "Failed to save branding settings." }, 500);
+    }
 
     return c.json(await getWhiteLabelRow(c.env.DB));
   }
