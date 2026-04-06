@@ -104,12 +104,6 @@ export default function AdminLoginPage() {
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
           </form>
-
-          <div className="mt-8 text-center">
-            <p className="text-sm text-blue-200">
-              Demo Credentials: master_admin / admin123
-            </p>
-          </div>
         </div>
       </div>
     </div>
